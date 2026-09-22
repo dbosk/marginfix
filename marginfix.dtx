@@ -15,7 +15,7 @@
            [2020/05/06 v1.2 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{1346}
+\CheckSum{1352}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -77,6 +77,11 @@
 %       {(Daniel Bosk) Keep each margin note on the page of its callout:
 %        record callout pages in the .aux and, on the next run, hold back
 %        notes that \LaTeX{} would otherwise set on the previous page.}
+% \changes{v1.4}{2026/09/22}
+%       {(Daniel Bosk) Hook into the kernel's \cs{@outputbox@attachfloats},
+%        so that notes are attached under the standard classes with
+%        \LaTeX{} 2020-10-01 or later (the kernel's first aid only did this
+%        for v1.2).}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -812,6 +817,19 @@
 %    \begin{macrocode}
 \expandafter\def\expandafter\@combinefloats\expandafter{\expandafter
   \MFX@combinefloats@before\@combinefloats}
+%    \end{macrocode}
+% Since the 2020-10-01 release, the kernel's \cs{@makecol} no longer calls
+% \cs{@combinefloats} directly but through \cs{@outputbox@attachfloats},
+% which was \cs{let} to \cs{@combinefloats} before we patched it.  The
+% kernel's first-aid file repointed it for v1.2 of this package only, so we
+% must do it ourselves; otherwise our hook never runs under the standard
+% classes (\cs{memoir} has its own \cs{@makecol} that still calls
+% \cs{@combinefloats}), the notes are never attached, and the document ends
+% with ``Too many unprocessed floats'' and ``lost some margin notes''.
+%    \begin{macrocode}
+\ifdefined\@outputbox@attachfloats
+  \let\@outputbox@attachfloats\@combinefloats
+\fi
 %    \end{macrocode}
 % \end{macros}
 %
