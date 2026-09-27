@@ -1,0 +1,88 @@
+% Shared by the tests of deferrable notes (priority.tex, stress-*.tex).
+%
+% \ltnote{text} is a deferrable commentary note and \fn{text} a footnote
+% (the documents set footnotes in the margin).  Both put a \label in the
+% note, and \fn one at its mark, so that at the end of the next run we can
+% check from the .aux file that
+%
+%   * every footnote is on the page of its mark (modes defer and split), and
+%   * the commentary notes are in order (all modes).
+%
+% The mode comes from \prioritymode (default warn), e.g.
+%   pdflatex -jobname=priority-split "\def\prioritymode{split}\input{test/priority}"
+% A failed check is a LaTeX error, so pdflatex exits non-zero.  If
+% \ifexpectmoved is true (set it before \begin{document}), mode warn must
+% leave a footnote off its page: that is the problem the test reproduces.
+%
+% \mfxdeferrable and \marginnotepriority are provided if missing, so that
+% marginfix v1.4 can typeset the tests too (make regress).
+\makeatletter
+\providecommand\mfxdeferrable{}
+\providecommand\marginnotepriority[1]{}
+\providecommand\prioritymode{warn}
+\marginnotepriority{\prioritymode}
+\newif\ifexpectmoved
+\newcounter{ltnote}
+\newcounter{fnmark}
+\newcommand\ltnote[1]{%
+  \stepcounter{ltnote}%
+  \marginpar{\mfxdeferrable\label{lt\theltnote}\foottextfont
+    \textbf{LT\theltnote:} #1}}
+\newcommand\fn[1]{%
+  \stepcounter{fnmark}\label{mk\thefnmark}%
+  \footnote{\label{fn\thefnmark}FN\thefnmark: #1}}
+% The page of a label from the last run, or -1.  (memoir's labels have
+% five fields, the kernel's two; the page is the second.)
+\def\pt@page#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax -1\else
+    \expandafter\expandafter\expandafter\pt@second
+      \csname r@#1\endcsname\@nil\fi}
+\def\pt@second#1#2#3\@nil{#2}
+\newcount\pt@i
+\newcount\pt@off
+\newcount\pt@order
+\newcount\pt@undef
+\def\pt@check{%
+  \pt@i\z@
+  \@whilenum\pt@i<\c@fnmark\do{%
+    \advance\pt@i\@ne
+    \ifnum\pt@page{mk\the\pt@i}<\z@ \advance\pt@undef\@ne \fi
+    \ifnum\pt@page{fn\the\pt@i}<\z@ \advance\pt@undef\@ne \fi
+    \ifnum\pt@page{mk\the\pt@i}=\pt@page{fn\the\pt@i}\else
+      \advance\pt@off\@ne
+      \typeout{prioritytest: footnote \the\pt@i\space on page
+        \pt@page{fn\the\pt@i}, its mark on page \pt@page{mk\the\pt@i}}%
+    \fi}%
+  \pt@i\@ne
+  \@whilenum\pt@i<\c@ltnote\do{%
+    \advance\pt@i\@ne
+    \ifnum\pt@page{lt\the\pt@i}<\pt@page{lt\the\numexpr\pt@i-1\relax}\relax
+      \advance\pt@order\@ne
+      \typeout{prioritytest: commentary note \the\pt@i\space before
+        note \the\numexpr\pt@i-1\relax}%
+    \fi}%
+  \typeout{prioritytest (\prioritymode): \the\c@fnmark\space footnotes,
+    \the\pt@off\space off their mark's page; \the\c@ltnote\space
+    commentary notes, \the\pt@order\space out of order}%
+  \ifnum\pt@undef>\z@
+    \typeout{prioritytest: labels undefined, rerun to check}%
+  \else
+    \ifnum\pt@order>\z@
+      \PackageError{prioritytest}{Commentary notes out of order}\@ehc
+    \fi
+    \def\reserved@a{warn}%
+    \ifx\prioritymode\reserved@a
+      \ifexpectmoved\ifnum\pt@off=\z@
+        \PackageError{prioritytest}{No footnote moved in mode warn:
+          the test no longer reproduces the problem}\@ehc
+      \fi\fi
+    \else
+      \def\reserved@a{off}%
+      \ifx\prioritymode\reserved@a\else\ifnum\pt@off>\z@
+        \PackageError{prioritytest}{\the\pt@off\space footnote(s) off
+          their mark's page in mode \prioritymode}\@ehc
+      \fi\fi
+    \fi
+  \fi}
+\AtEndDocument{\pt@check}
+\makeatother

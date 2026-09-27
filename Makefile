@@ -12,7 +12,7 @@ marginfix.pdf:marginfix.dtx
 
 .PHONY: test clean
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf anchorpage.pdf
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf anchorpage.pdf priority-test
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
@@ -42,6 +42,27 @@ issue-15.pdf:marginfix.sty test/issue-15.tex
 anchorpage.pdf:marginfix.sty test/anchorpage.tex
 	pdflatex test/anchorpage.tex
 	pdflatex test/anchorpage.tex
+
+# Deferrable notes: each test in each mode, three passes, since the checks
+# (see test/prioritycheck.tex) read the pages from the previous run.  A
+# failed check is a LaTeX error, so make stops.
+PRIORITY_TESTS=priority stress-3 stress-8b
+PRIORITY_MODES=warn defer split
+PRIORITY_JOBS=$(foreach t,$(PRIORITY_TESTS),$(foreach m,$(PRIORITY_MODES),$(t)-$(m)))
+
+.PHONY: priority-test
+priority-test:$(PRIORITY_JOBS:=.pdf)
+
+$(PRIORITY_JOBS:=.pdf): %.pdf: marginfix.sty test/prioritycheck.tex \
+	$(PRIORITY_TESTS:%=test/%.tex)
+	t=$*; for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode -jobname=$* \
+	    "\\def\\prioritymode{$${t##*-}}\\input{test/$${t%-*}}" >/dev/null \
+	  || true; done
+	t=$*; pdflatex -interaction=nonstopmode -jobname=$* \
+	  "\\def\\prioritymode{$${t##*-}}\\input{test/$${t%-*}}" >/dev/null \
+	  || { grep -A3 '^!' $*.log; exit 1; }
+	@grep 'prioritytest (' $*.log
 
 clean:
 	rm *.log *.aux *.pdf tufte.out marginfix.sty
