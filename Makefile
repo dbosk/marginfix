@@ -50,7 +50,7 @@ PRIORITY_TESTS=priority stress-3 stress-8b
 PRIORITY_MODES=warn defer split
 PRIORITY_JOBS=$(foreach t,$(PRIORITY_TESTS),$(foreach m,$(PRIORITY_MODES),$(t)-$(m)))
 
-.PHONY: priority-test
+.PHONY: priority-test regress
 priority-test:$(PRIORITY_JOBS:=.pdf)
 
 $(PRIORITY_JOBS:=.pdf): %.pdf: marginfix.sty test/prioritycheck.tex \
@@ -63,6 +63,11 @@ $(PRIORITY_JOBS:=.pdf): %.pdf: marginfix.sty test/prioritycheck.tex \
 	  "\\def\\prioritymode{$${t##*-}}\\input{test/$${t%-*}}" >/dev/null \
 	  || { grep -A3 '^!' $*.log; exit 1; }
 	@grep 'prioritytest (' $*.log
+
+# The default mode must typeset every test exactly as the version before
+# deferrable notes did.
+regress:marginfix.sty
+	test/regress.sh $(BASE)
 
 clean:
 	rm *.log *.aux *.pdf tufte.out marginfix.sty
