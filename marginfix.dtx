@@ -2459,14 +2459,15 @@
 % \begin{macros}{\marginnotepriority,\mfx@priority}
 % The mode is kept by name in \cs{mfx@priority}, and \cs{MFX@buildmargin@down}
 % calls |\MFX@down@|\meta{mode}, so a mode is valid if that macro exists.
-% The default is \texttt{warn}.
+% We expand the name, since we compare it with \cs{ifx}, and the argument
+% may be a macro.  The default is \texttt{warn}.
 %    \begin{macrocode}
 \def\mfx@priority{warn}
 \def\marginnotepriority#1{%
   \@ifundefined{MFX@down@#1}%
     {\PackageError{marginfix}{Unknown margin note priority `#1'}%
        {Use one of warn, defer, split or off.}}%
-    {\gdef\mfx@priority{#1}}%
+    {\xdef\mfx@priority{#1}}%
 }
 %    \end{macrocode}
 % \end{macros}
