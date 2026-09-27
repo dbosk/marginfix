@@ -15,7 +15,7 @@
            [2026/09/27 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{2174}
+\CheckSum{2203}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -239,16 +239,25 @@
 %   deferrable notes, but whenever an ordinary note moves to a later page
 %   while deferrable notes ahead of it stayed, or didn't fit either, we warn,
 %   naming the ordinary note and the deferrable ones by the file and line
-%   where each note ends.  Then you know which note to shorten or re-anchor.
+%   where each note ends.  If a deferrable note that didn't fit took the
+%   notes after it along, the warning says so.  Then you know which note to
+%   shorten or re-anchor.
 % \item[\texttt{defer}] A deferrable note that is in the way moves, whole, to
 %   the next page, so that the ordinary notes after it fit on their page.
 %   The notes of each kind keep their order.  On the next page, the moved
 %   note comes after that page's ordinary notes, up to its first deferrable
 %   note, so that it doesn't push the next page's footnotes away from their
 %   marks in turn.  We warn about every note that moves this way.
+%   A deferrable note that doesn't fit at all moves to the next page too,
+%   but no longer takes the notes after it along: the ordinary notes after
+%   it that fit are still set on the page.  The deferrable notes after it
+%   move with it, though, so that they keep their order; and an ordinary
+%   note that doesn't fit still takes every later note along, so that
+%   footnotes never trade places.
 % \item[\texttt{split}] Like \texttt{defer}, but the note that is in the way
-%   is split: what fits stays on the page, where its callout is, and the rest
-%   continues at the top of the next page.  If the note can't be split (too
+%   is split, and so is a deferrable note that doesn't fit: what fits stays
+%   on the page, where its callout is, and the rest continues at the top of
+%   the next page.  If the note can't be split (too
 %   little room left, nothing to break it at, or a margin interrupted by
 %   \cs{blockmargin}), it moves whole as with \texttt{defer}.  We warn about
 %   every note that is split or moved.
@@ -1409,7 +1418,16 @@
 % doesn't fit, takes all later deferrable notes with it to the next page, so
 % that the deferrable notes keep their order, but the ordinary notes after
 % it are still tried; the ordinary notes keep their order as before, since
-% the first one that doesn't fit ends the page.  A deferrable note that
+% the first one that doesn't fit ends the page.  So the rule is: a
+% deferrable note never holds up an ordinary note after it, but no note
+% overtakes a note of its own kind, and nothing overtakes an ordinary note.
+% This also fills the page after a long deferrable note that doesn't fit at
+% all, which in the mode \texttt{warn} (as in the pass above) would take
+% every later note to the next page.  We could let a later, shorter
+% deferrable note fill the gap too, but commentary notes are often read in
+% sequence, and a note carried to the next page ahead of the next page's
+% own deferrable notes (\cs{MFX@carrylate}) relies on their order.
+% A deferrable note that
 % doesn't fit gives its space back: the fitting test moves on to the next
 % piece of the margin when a note doesn't fit in the current one, and a note
 % we skip must not use up the pieces.  Every trial skips one more note, so
@@ -1417,7 +1435,8 @@
 % Then the real pass takes the notes as the last trial did, moving the notes
 % on the skip list, and the later deferrable ones, to the next page.
 %
-% In the mode \texttt{split}, the first skipped note is split instead: the
+% In the mode \texttt{split}, the first deferrable note to move, whether
+% skipped or not fitting, is split instead: the
 % last trial also tells us how much room is left at the bottom of the
 % margin, and we \cs{vsplit} the note to that height.  The top part takes
 % the note's place in the list, and the rest goes to the next page as a new
@@ -1509,9 +1528,13 @@
   \ifnum\mfx@trial@L>\z@
     \ifx\mfx@priority\MFX@priority@warn
       \PackageWarningNoLine{marginfix}{Margin note from \mfx@trial@Nloc\space
-        moved from page \thepage\MessageBreak to a later page, while
-        deferrable margin notes\MessageBreak ahead of it did not:
-        \mfx@trial@lows\MessageBreak (shorten or move them, or use
+        moved from page \thepage\MessageBreak to a later page; deferrable
+        margin notes\MessageBreak ahead of it: \mfx@trial@lows
+        \ifx\mfx@trial@blocker\@empty\else
+          \MessageBreak (\mfx@trial@blocker\space did not fit and
+          took\MessageBreak the notes after it along)%
+        \fi
+        \MessageBreak (shorten or move them, or use
         \string\marginnotepriority)}%
     \else
       \edef\mfx@skipset{\mfx@skipset\mfx@trial@L,}%
@@ -1527,7 +1550,9 @@
 % One trial runs over the list in a group, so that everything but the
 % results is forgotten afterwards; the results are \cs{mfx@trial@N} and
 % \cs{mfx@trial@L} (zero if there is none), the location of~$N$, the
-% locations of the deferrable notes taken before~$N$, and the room left.
+% locations of the deferrable notes taken before~$N$, the location of a
+% deferrable note that didn't fit and ended the page (mode \texttt{warn}),
+% and the room left.
 %    \begin{macrocode}
 \def\MFX@trial{%
   \begingroup
@@ -1540,6 +1565,7 @@
     \gdef\mfx@trial@L{0}%
     \def\mfx@lastlow{0}%
     \global\let\mfx@trial@lows\@empty
+    \global\let\mfx@trial@blocker\@empty
     \let\mfx@build@note\MFX@trial@note
     \let\mfx@build@skip\@gobble
     \def\mfx@build@clear{\mfx@fulltrue}%
@@ -1574,6 +1600,7 @@
               \mfx@fulltrue
               \edef\mfx@lastlow{\the\Mfx@idx}%
               \xdef\mfx@trial@lows{\mfx@trial@lows\MFX@loc#1\space}%
+              \xdef\mfx@trial@blocker{\MFX@loc#1}%
             \else
               \mfx@lowblockedtrue
             \fi
@@ -1633,8 +1660,10 @@
 % The real pass of the modes \texttt{defer} and \texttt{split}.  It does
 % what \cs{MFX@margin@note@down} does, but takes and moves notes as the last
 % trial did.  A note on the skip list is split, if we may, or else moved;
-% either way we warn.  Only the first note on the skip list gets this far:
-% the notes after it are blocked already.
+% either way we warn.  So is a deferrable note that doesn't fit, but then we
+% only warn if we split it, since marginfix has always moved such notes.
+% Only the first deferrable note to move gets this far: the deferrable
+% notes after it are blocked already.
 %    \begin{macrocode}
 \def\MFX@real@note#1#2#3{%
   \advance\Mfx@idx\@ne
@@ -1646,25 +1675,7 @@
     \if@tempswa
       \ifmfx@lowblocked\in@false\else\MFX@inskip\fi
       \ifin@
-        \mfx@lowblockedtrue
-        \edef\mfx@thisloc{\MFX@loc#1}%
-        \@tempswafalse
-        \ifx\mfx@priority\MFX@priority@split
-          \ifmfx@onepiece
-            \MFX@split{#1}{#2}{#3}%
-          \fi
-        \fi
-        \if@tempswa
-          \PackageWarningNoLine{marginfix}{Deferrable margin note from
-            \mfx@thisloc\MessageBreak split at the end of page \thepage,
-            to keep the\MessageBreak margin notes after it on their page}%
-        \else
-          \PackageWarningNoLine{marginfix}{Deferrable margin note from
-            \mfx@thisloc\MessageBreak moved from page \thepage\space
-            to the next, to keep\MessageBreak the margin notes after it
-            on their page}%
-          \MFX@defer{#1}{#2}%
-        \fi
+        \MFX@give@way{#1}{#2}{#3}\@tempswatrue
       \else
         \ifmfx@lowblocked
           \MFX@defer{#1}{#2}%
@@ -1673,8 +1684,7 @@
           \if@tempswa
             \MFX@place{#1}{#2}{#3}%
           \else
-            \mfx@lowblockedtrue
-            \MFX@defer{#1}{#2}%
+            \MFX@give@way{#1}{#2}{#3}\@tempswafalse
           \fi
         \fi
       \fi
@@ -1686,6 +1696,43 @@
         \MFX@defer{#1}{#2}%
       \fi
     \fi
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@give@way,\ifmfx@warnmove}
+% \cs{MFX@give@way}\marg{box}\marg{box}\marg{position}\marg{warn} moves the
+% first deferrable note that must move, splitting it in the mode
+% \texttt{split} if it can.  The last argument sets \cs{@tempswa} to whether
+% to warn when the note moves whole.  The reason given in the warnings is
+% the same either way, since a note that doesn't fit leaves its room to the
+% notes after it too.
+%    \begin{macrocode}
+\newif\ifmfx@warnmove
+\def\MFX@give@way#1#2#3#4{%
+  \mfx@lowblockedtrue
+  \edef\mfx@thisloc{\MFX@loc#1}%
+  #4%
+  \if@tempswa\mfx@warnmovetrue\else\mfx@warnmovefalse\fi
+  \@tempswafalse
+  \ifx\mfx@priority\MFX@priority@split
+    \ifmfx@onepiece
+      \MFX@split{#1}{#2}{#3}%
+    \fi
+  \fi
+  \if@tempswa
+    \PackageWarningNoLine{marginfix}{Deferrable margin note from
+      \mfx@thisloc\MessageBreak split at the end of page \thepage,
+      to keep the\MessageBreak margin notes after it on their page}%
+  \else
+    \ifmfx@warnmove
+      \PackageWarningNoLine{marginfix}{Deferrable margin note from
+        \mfx@thisloc\MessageBreak moved from page \thepage\space
+        to the next, to keep\MessageBreak the margin notes after it
+        on their page}%
+    \fi
+    \MFX@defer{#1}{#2}%
   \fi
 }
 %    \end{macrocode}
