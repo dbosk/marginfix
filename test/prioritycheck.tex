@@ -26,7 +26,7 @@
 \newcounter{fnmark}
 \newcommand\ltnote[1]{%
   \stepcounter{ltnote}%
-  \marginpar{\mfxdeferrable\label{lt\theltnote}\foottextfont
+  \marginpar{\foottextfont\mfxdeferrable\label{lt\theltnote}%
     \textbf{LT\theltnote:} #1}}
 \newcommand\fn[1]{%
   \stepcounter{fnmark}\label{mk\thefnmark}%
