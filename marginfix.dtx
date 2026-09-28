@@ -15,7 +15,7 @@
            [2026/09/27 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{2203}
+\CheckSum{2666}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -224,7 +224,9 @@
 % \begin{verbatim}
 % \marginpar{\mfxdeferrable\footnotesize Why this example comes first: ...}
 % \end{verbatim}
-% All other notes are \emph{ordinary}.  A package that makes commentary
+% All other notes are \emph{ordinary}.  Put \cs{mfxdeferrable} after the
+% note's font commands, since it records the font for the cues of a split
+% note (see below).  A package that makes commentary
 % notes can mark them all by putting \cs{mfxdeferrable} in the note text it
 % builds, guarded by |\ifdefined\mfxdeferrable| so that it still works with
 % older versions of marginfix.  Used outside a margin note,
@@ -260,12 +262,39 @@
 %   the next page.  If the note can't be split (too
 %   little room left, nothing to break it at, or a margin interrupted by
 %   \cs{blockmargin}), it moves whole as with \texttt{defer}.  We warn about
-%   every note that is split or moved.
+%   every note that is split or moved.  See below for where notes are split
+%   and how the parts are marked.
 % \item[\texttt{off}] As \texttt{warn}, but without the warnings.
 % \end{description}
 % An ordinary note can still move to a later page, when the ordinary notes
 % alone don't fit; nothing can help that.  A deferrable note may move more
 % than one page if the following margins are full as well.
+%
+% \DescribeMacro{\marginsplitslack}
+% In the mode \texttt{split}, a note is split between paragraphs if it can
+% be: at the last paragraph break where the first part fits, unless that
+% leaves more than \cs{marginsplitslack} of the room unused (or more than
+% half of it).  The default is four lines of the text; set it with
+% \cs{setlength}.  Otherwise the note is split between lines, where the
+% penalties of the note's paragraphs are lowest, so that, with the usual
+% club and widow penalties, no single line of a paragraph is left on either
+% side.  Only when no break fits that bill do we take the last line that
+% fits.  A note is never split in the middle of a line, but it may be split
+% in the middle of a sentence.
+%
+% \DescribeMacro{\marginnotecontinued}\DescribeMacro{\marginnotecontinues}
+% The rest of a split note starts with a line saying
+% \cs{marginnotecontinued}\marg{text}, by default ``(continued)'', so that
+% it doesn't read as a note of its own.  Its first part can end with a line
+% saying \cs{marginnotecontinues}\marg{text}, set flush right, for
+% instance an arrow; by default that is empty, and then there is no such
+% line.  (A line at the end of the first part takes room on the crowded
+% page, while the rest starts at the top of the next margin, where the
+% reader finds it anyway.)  An empty \meta{text} turns a cue off.  The cues
+% are set in the font of the note where it said \cs{mfxdeferrable}, so put
+% \cs{mfxdeferrable} after the note's font commands.  Both commands act
+% locally, so a package can set them for a language, e.g.\
+% |\marginnotecontinued{(forts.)}| for Swedish.
 %
 % \section{Interaction with other packages}
 % \subsection{memoir}
@@ -465,6 +494,17 @@
 % (the default is zero).
 %    \begin{macrocode}
 \newdimen\marginposadjustment
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\marginsplitslack}
+% When a deferrable note is split (mode \texttt{split}), we prefer a
+% paragraph break that leaves at most this much of the room unused (but
+% never more than half of it) to a line break.  The default is four lines of
+% the normal text.
+%    \begin{macrocode}
+\newdimen\marginsplitslack
+\marginsplitslack=4\baselineskip
 %    \end{macrocode}
 % \end{macros}
 %
@@ -932,14 +972,36 @@
 %    \end{macrocode}
 % \end{macros}
 %
-% \begin{macros}{\mfxdeferrable,\MFX@islow}
+% \begin{macros}{\mfxdeferrable,\MFX@markdeferrable,\MFX@notefont,
+%     \MFX@islow}
 % The mark itself, and the test for it: \cs{MFX@islow}\marg{box} sets
-% \cs{@tempswa} to whether the note in \emph{box} is deferrable.
+% \cs{@tempswa} to whether the note in \emph{box} is deferrable.  The mark
+% also records the font and \cs{baselineskip} at that point, in
+% |\mfx@nf@|\meta{number} and |\mfx@nb@|\meta{number}, for the cues of a
+% split note, which are typeset in the output routine, where the note's
+% font is long gone.  We record the font by its NFSS attributes rather
+% than by \cs{font}, so that font commands in the cue text work relative to
+% it; and the \cs{baselineskip} as it is, since \cs{baselinestretch} in the
+% output routine may differ from the note's.  \cs{MFX@notefont}\marg{box}
+% selects them again, if there are any.
 %    \begin{macrocode}
+\def\MFX@markdeferrable#1{%
+  \expandafter\gdef\csname mfx@cls@\number#1\endcsname{}%
+  \expandafter\xdef\csname mfx@nf@\number#1\endcsname{%
+    \noexpand\fontsize{\f@size}{\the\baselineskip}%
+    \noexpand\usefont{\f@encoding}{\f@family}{\f@series}{\f@shape}}%
+  \expandafter\xdef\csname mfx@nb@\number#1\endcsname{\the\baselineskip}%
+}
+\def\MFX@notefont#1{%
+  \expandafter\ifx\csname mfx@nf@\number#1\endcsname\relax\else
+    \csname mfx@nf@\number#1\endcsname
+    \baselineskip\csname mfx@nb@\number#1\endcsname\relax
+  \fi
+}
 \def\mfxdeferrable{%
   \ifmfx@in@note
-    \expandafter\gdef\csname mfx@cls@\number\@currbox\endcsname{}%
-    \expandafter\gdef\csname mfx@cls@\number\@marbox\endcsname{}%
+    \MFX@markdeferrable\@currbox
+    \MFX@markdeferrable\@marbox
   \else
     \PackageWarning{marginfix}{\string\mfxdeferrable\space outside a
       margin note ignored}%
@@ -1438,7 +1500,8 @@
 % In the mode \texttt{split}, the first deferrable note to move, whether
 % skipped or not fitting, is split instead: the
 % last trial also tells us how much room is left at the bottom of the
-% margin, and we \cs{vsplit} the note to that height.  The top part takes
+% margin, and we split the note to fit it, preferring a paragraph break
+% (\cs{MFX@split} explains how).  The top part takes
 % the note's place in the list, and the rest goes to the next page as a new
 % deferrable note, with a new pair of registers from \cs{@freelist}.  We
 % only split when the margin is a single piece, since then the room left
@@ -1785,38 +1848,125 @@
 % \begin{macros}{\MFX@split}
 % \cs{MFX@split}\marg{box}\marg{box}\marg{position} splits a note to the room
 % left by the last trial, less the skip after the note, and sets
-% \cs{@tempswa} if it did.  A note's box holds a \cs{vtop} (see
-% \cs{@savemarbox}); we take it out with \cs{lastbox} and split its list.
-% We set \cs{splittopskip} to \cs{topskip}, so that the first line of the
-% rest lines up with the first line of text on the next page.  \cs{vsplit}
-% aims at a height without the depth and may count on shrinking glue, so we
-% check the natural size of the top part.  The work is done in a group, to
-% keep the settings of \cs{vsplit} out of the rest of the output routine.
+% \cs{@tempswa} if it did.
+%
+% We don't leave the choice of the break to \cs{vsplit}.  \cs{vsplit} weighs
+% each break by the badness of the top part plus the penalty there, but a
+% margin note has no stretchable glue, so every top part that doesn't fill
+% the room exactly is infinitely bad, all breaks cost the same, and
+% \cs{vsplit} takes the last one that fits, whatever its penalty.  So it
+% splits in the middle of a sentence, or of a citation, as happily as
+% between paragraphs, and ignores the club, widow and interline penalties
+% of the note's paragraphs.
+%
+% Instead we look at the list ourselves.  A note's box holds a \cs{vtop}
+% (see \cs{@savemarbox}); we take it out with \cs{lastbox} and then take a
+% copy of its list apart from the bottom, with \cs{lastbox}, \cs{unskip},
+% \cs{unkern} and \cs{unpenalty}, recognising each item by e-\TeX's
+% \cs{lastnodetype} and keeping track of the height of what is left above
+% it.  Between two lines there is a \emph{gap} of glue and penalties, and
+% the paragraph builder put the club, widow, interline and broken penalties
+% of the note's paragraphs there; a gap is a legal break if it starts with
+% glue (at no cost) or has a penalty below 10000 (at that cost).  Between
+% two paragraphs the gap holds the \cs{parskip} glue as well as the
+% interline glue, so a gap with at least two pieces of glue is a paragraph
+% break.  (\cs{parskip} is usually zero in a note, so we can't tell it by
+% its size.)  We can't take apart anything else, such as a \cs{write} from
+% a \cs{label} between paragraphs, so the scan stops there, and breaks
+% above it are not considered.
+%
+% Of the breaks where the top part fits, we choose
+% \begin{enumerate}
+% \item the last paragraph break that leaves at most the \emph{slack}
+%   unused, where the slack is \cs{marginsplitslack} but at most half the
+%   room;
+% \item otherwise the cheapest line break within the slack, the last of
+%   them if several cost the same, so that with the usual penalties we
+%   don't leave a single line of a paragraph on either side;
+% \item otherwise the last break that fits at all;
+% \item and if the scan found none, because it stopped early, the break
+%   \cs{vsplit} would take.
+% \end{enumerate}
+% The slack bounds what we give up for a paragraph break: the commentary
+% that moves to the next page grows by at most that much, and it pushes the
+% next page's notes down by as much.  A few lines is a fair price for not
+% cutting a thought in half, and the bound by half the room keeps us from
+% leaving a nearly empty margin when little room is left.  We don't try to
+% avoid breaking inside a sentence: \TeX{} can't see the characters at the
+% end of a line (Lua\TeX{} could), and a heuristic on the glue wouldn't be
+% reliable.  The paragraph breaks, and the penalties an author can add, are
+% what we have.
+%
+% Having chosen, we let \cs{vsplit} make the cut, to the height of the top
+% part we measured: without stretch it takes the last break that fits, and
+% that is ours, since the next break down is higher by at least a line.
+% \cs{vsplit} leaves whatever is in the list, \cs{write}s included, in the
+% part where it was, and drops the glue and penalties at the break, as at a
+% page break.
+%
+% The rest starts with the cue \cs{marginnotecontinued}, on a line of its
+% own, in the font the note had where it said \cs{mfxdeferrable}; we can't
+% run the cue into the first line, since that is typeset already.  We get
+% the interline glue after the cue from \cs{vsplit} by setting
+% \cs{splittopskip} to the distance from the cue's depth to the next
+% baseline.  Without a cue, \cs{splittopskip} is the height of the rest's
+% first line, which the scan noted, so that the rest starts with a line, as
+% the note did.  Either way the rest is a \cs{vtop} like the note, and is
+% placed on the next page like any note moved to the top of the margin,
+% with its first baseline at \cs{topskip}.  The top part can end with the
+% cue \cs{marginnotecontinues}, set flush right, for which we reserve a
+% line.
+%
+% \begin{macros}{\Mfx@split@rest,\Mfx@scan@size,\Mfx@scan@room,
+%     \Mfx@scan@slack,\Mfx@scan@ht,\Mfx@gap@ht,\Mfx@gap@glue,\Mfx@gap@pen,
+%     \Mfx@best@pen,\Mfx@cut@size,\Mfx@cut@ht,\Mfx@par@size,\Mfx@par@ht,
+%     \Mfx@line@size,\Mfx@line@ht,\Mfx@any@size,\Mfx@any@ht,
+%     \ifmfx@scan@box,\ifmfx@scan@ingap}
+% The state of the scan: the height of what is left (\cs{Mfx@scan@size}),
+% the height of the last box taken off (\cs{Mfx@scan@ht}), and for the
+% current gap the height of the box below it, how much glue it has and its
+% lowest penalty.  A break is recorded by the height of the top part and
+% the height of the first line of the rest.
+%    \begin{macrocode}
+\newbox\Mfx@split@rest
+\newdimen\Mfx@scan@size
+\newdimen\Mfx@scan@room
+\newdimen\Mfx@scan@slack
+\newdimen\Mfx@scan@ht
+\newdimen\Mfx@gap@ht
+\newcount\Mfx@gap@glue
+\newcount\Mfx@gap@pen
+\newcount\Mfx@best@pen
+\newdimen\Mfx@cut@size
+\newdimen\Mfx@cut@ht
+\newdimen\Mfx@par@size
+\newdimen\Mfx@par@ht
+\newdimen\Mfx@line@size
+\newdimen\Mfx@line@ht
+\newdimen\Mfx@any@size
+\newdimen\Mfx@any@ht
+\newif\ifmfx@scan@box
+\newif\ifmfx@scan@ingap
+%    \end{macrocode}
+% \end{macros}
+%
+% First the split itself.  We work in a group, in the note's font, and take
+% the list out of the note's box.
 %    \begin{macrocode}
 \def\MFX@split#1#2#3{%
   \begingroup
     \global\let\mfx@split@ok\@empty
-    \dimen@\dimexpr\Mfx@splitroom-\marginparpush-\p@\relax
-    \ifdim\dimen@>\Mfx@splitmin
+    \MFX@notefont#1%
+    \Mfx@scan@room\dimexpr\Mfx@splitroom-\marginparpush-\p@\relax
+    \ifx\mfx@contsuffix\@empty\else
+      \advance\Mfx@scan@room-\baselineskip
+    \fi
+    \ifdim\Mfx@scan@room>\Mfx@splitmin
       \setbox\z@\vbox{\unvcopy\@marbox\global\setbox\Mfx@split@tmp\lastbox}%
       \ifvoid\Mfx@split@tmp\else
         \setbox\Mfx@split@tmp\vbox{\unvbox\Mfx@split@tmp}%
-        \splittopskip\topskip
-        \splitmaxdepth\maxdepth
-        \vbadness\@M
-        \vfuzz\maxdimen
-        \setbox\Mfx@split@top\vsplit\Mfx@split@tmp to \dimen@
-        \setbox\Mfx@split@top\vbox{\unvbox\Mfx@split@top}%
-        \dimen@ii\dimexpr\ht\Mfx@split@top+\dp\Mfx@split@top\relax
-        \ifdim\dimen@ii>\z@
-          \ifdim\dimen@ii<\dimen@
-            \ifvoid\Mfx@split@tmp\else
-              \global\setbox\Mfx@split@top\box\Mfx@split@top
-              \global\setbox\Mfx@split@tmp\box\Mfx@split@tmp
-              \gdef\mfx@split@ok{ok}%
-            \fi
-          \fi
-        \fi
+        \MFX@split@choose
+        \MFX@split@cut
       \fi
     \fi
   \endgroup
@@ -1824,7 +1974,8 @@
 % If the split worked we need two free registers for the rest.  If we get
 % them, the top part replaces the note in both of its registers and is taken
 % (it fits, but we test it the usual way to use up the room), and the rest
-% goes to the next page right after it.
+% goes to the next page right after it, as a deferrable note with the same
+% font for its cues, should it be split again.
 %    \begin{macrocode}
   \@tempswafalse
   \ifx\mfx@split@ok\@empty\else
@@ -1833,14 +1984,14 @@
         {\@cons\@freelist\mfx@restA}}{}%
   \fi
   \if@tempswa
-    \global\setbox#1\vbox{\vtop{\unvbox\Mfx@split@top}}%
-    \global\setbox#2\copy#1%
-    \global\setbox\mfx@restA\vbox{\unvbox\Mfx@split@tmp}%
-    \global\setbox\mfx@restB\copy\mfx@restA
+    \global\setbox#1\copy\Mfx@split@top
+    \global\setbox#2\box\Mfx@split@top
+    \global\setbox\mfx@restA\copy\Mfx@split@rest
+    \global\setbox\mfx@restB\box\Mfx@split@rest
     \MFX@forget\mfx@restA
     \MFX@forget\mfx@restB
-    \expandafter\gdef\csname mfx@cls@\number\mfx@restA\endcsname{}%
-    \expandafter\gdef\csname mfx@cls@\number\mfx@restB\endcsname{}%
+    \MFX@copyclass\mfx@restA#1%
+    \MFX@copyclass\mfx@restB#1%
     \expandafter\xdef\csname mfx@boxloc@\number\mfx@restA\endcsname{%
       \MFX@loc#1 (continued)}%
     \MFX@try@fit{\ht#1+\dp#1}%
@@ -1853,6 +2004,215 @@
       \noexpand\mfx@build@note\mfx@restA\mfx@restB{\MFX@minus@inf}%
       \noexpand\mfx@build@skip{\the\marginparpush}}%
     \@tempswatrue
+  \fi
+}
+%    \end{macrocode}
+% \cs{MFX@copyclass}\marg{to}\marg{from} marks the note in box \emph{to}
+% deferrable, with the font of the note in box \emph{from}.
+%    \begin{macrocode}
+\def\MFX@copyclass#1#2{%
+  \expandafter\gdef\csname mfx@cls@\number#1\endcsname{}%
+  \expandafter\global\expandafter\let
+    \csname mfx@nf@\number#1\expandafter\endcsname
+    \csname mfx@nf@\number#2\endcsname
+  \expandafter\global\expandafter\let
+    \csname mfx@nb@\number#1\expandafter\endcsname
+    \csname mfx@nb@\number#2\endcsname
+}
+%    \end{macrocode}
+% Choosing the break: the slack, then the scan, in a box we throw away, and
+% then the choice in order of preference, leaving the height of the top
+% part and of the rest's first line in \cs{Mfx@cut@size} and
+% \cs{Mfx@cut@ht}.  If the scan found nothing, we cut at the room and guess
+% the first line to be as high as a strut.
+%    \begin{macrocode}
+\def\MFX@split@choose{%
+  \Mfx@scan@slack\marginsplitslack
+  \ifdim\Mfx@scan@slack>.5\Mfx@scan@room
+    \Mfx@scan@slack.5\Mfx@scan@room
+  \fi
+  \global\Mfx@par@size\z@
+  \global\Mfx@line@size\z@
+  \global\Mfx@any@size\z@
+  \global\Mfx@best@pen\@M
+  \Mfx@scan@size\dimexpr\ht\Mfx@split@tmp+\dp\Mfx@split@tmp\relax
+  \setbox\z@\vbox{\unvcopy\Mfx@split@tmp\MFX@scan}%
+  \ifdim\Mfx@par@size>\z@
+    \Mfx@cut@size\Mfx@par@size
+    \Mfx@cut@ht\Mfx@par@ht
+  \else\ifdim\Mfx@line@size>\z@
+    \Mfx@cut@size\Mfx@line@size
+    \Mfx@cut@ht\Mfx@line@ht
+  \else\ifdim\Mfx@any@size>\z@
+    \Mfx@cut@size\Mfx@any@size
+    \Mfx@cut@ht\Mfx@any@ht
+  \else
+    \Mfx@cut@size\Mfx@scan@room
+    \Mfx@cut@ht\ht\strutbox
+  \fi\fi\fi
+}
+%    \end{macrocode}
+% Cutting, and putting both parts into \cs{vtop}s, with their cues.  The
+% top part must not be empty, must fit, and must leave a rest.  Without a
+% cue, the rest begins with the (zero) glue from \cs{splittopskip}, so
+% \cs{vtop} would give it no height; we set its height to that of its first
+% line, which puts the first baseline at the reference point, as in the
+% note.
+%    \begin{macrocode}
+\def\MFX@split@cut{%
+  \splitmaxdepth\maxdimen
+  \vbadness\@M
+  \vfuzz\maxdimen
+  \ifx\mfx@contprefix\@empty
+    \splittopskip\Mfx@cut@ht
+  \else
+    \setbox\tw@\hbox{\mfx@contprefix}%
+    \splittopskip\dimexpr\baselineskip-\dp\tw@\relax
+  \fi
+  \setbox\Mfx@split@top\vsplit\Mfx@split@tmp to \Mfx@cut@size
+  \setbox\Mfx@split@top\vbox{\unvbox\Mfx@split@top}%
+  \dimen@\dimexpr\ht\Mfx@split@top+\dp\Mfx@split@top\relax
+  \ifdim\dimen@>\z@
+    \ifdim\dimen@>\Mfx@scan@room\else
+      \ifvoid\Mfx@split@tmp\else
+        \dimen@\dp\Mfx@split@top
+        \dimen@ii\wd\Mfx@split@top
+        \global\setbox\Mfx@split@top\vbox{\vtop{%
+          \unvbox\Mfx@split@top
+          \ifx\mfx@contsuffix\@empty\else
+            \prevdepth\dimen@
+            \hbox to\dimen@ii{\hfil\mfx@contsuffix}%
+          \fi}}%
+        \ifx\mfx@contprefix\@empty
+          \setbox\z@\vtop{\unvbox\Mfx@split@tmp}%
+          \dp\z@\dimexpr\dp\z@-\Mfx@cut@ht\relax
+          \ht\z@\Mfx@cut@ht
+        \else
+          \setbox\z@\vtop{\box\tw@\unvbox\Mfx@split@tmp}%
+        \fi
+        \global\setbox\Mfx@split@rest\vbox{\box\z@}%
+        \gdef\mfx@split@ok{ok}%
+      \fi
+    \fi
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@scan,\MFX@scan@step}
+% The scan runs inside the box being built, where \cs{lastbox} and friends
+% work.  It takes items off until the list is empty, or it meets an item it
+% can't take off, or \cs{MFX@scan@endgap} finds that the breaks from there
+% on leave more than the slack unused.
+%    \begin{macrocode}
+\def\MFX@scan{%
+  \mfx@scan@boxfalse
+  \mfx@scan@ingapfalse
+  \MFX@scan@step
+}
+\def\MFX@scan@step{%
+  \let\mfx@scan@next\MFX@scan@step
+  \ifcase\lastnodetype
+    \let\mfx@scan@next\relax % 0: a character
+  \or\MFX@scan@box           % 1: an hbox
+  \or\MFX@scan@box           % 2: a vbox
+  \or\let\mfx@scan@next\relax\or\let\mfx@scan@next\relax
+  \or\let\mfx@scan@next\relax\or\let\mfx@scan@next\relax
+  \or\let\mfx@scan@next\relax\or\let\mfx@scan@next\relax
+  \or\let\mfx@scan@next\relax\or\let\mfx@scan@next\relax
+  \or\MFX@scan@glue          % 11
+  \or\MFX@scan@kern          % 12
+  \or\MFX@scan@penalty       % 13
+  \else\let\mfx@scan@next\relax % -1: empty, or anything else
+  \fi
+  \mfx@scan@next
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@scan@box,\MFX@scan@glue,\MFX@scan@kern,
+%     \MFX@scan@penalty,\MFX@scan@gapitem}
+% Taking off one item.  A box ends the gap below it, if any.  The other
+% items belong to a gap if there is a box below them.
+%    \begin{macrocode}
+\def\MFX@scan@box{%
+  \ifmfx@scan@ingap\MFX@scan@endgap\fi
+  \setbox\z@\lastbox
+  \advance\Mfx@scan@size-\dimexpr\ht\z@+\dp\z@\relax
+  \Mfx@scan@ht\ht\z@
+  \mfx@scan@boxtrue
+}
+\def\MFX@scan@glue{%
+  \MFX@scan@gapitem
+  \advance\Mfx@scan@size-\lastskip
+  \unskip
+  \advance\Mfx@gap@glue\@ne
+  \let\mfx@gap@top\MFX@scan@glue
+}
+\def\MFX@scan@kern{%
+  \MFX@scan@gapitem
+  \advance\Mfx@scan@size-\lastkern
+  \unkern
+  \let\mfx@gap@top\MFX@scan@kern
+}
+\def\MFX@scan@penalty{%
+  \MFX@scan@gapitem
+  \ifnum\lastpenalty<\Mfx@gap@pen \Mfx@gap@pen\lastpenalty \fi
+  \unpenalty
+  \let\mfx@gap@top\MFX@scan@penalty
+}
+\def\MFX@scan@gapitem{%
+  \ifmfx@scan@box
+    \ifmfx@scan@ingap\else
+      \mfx@scan@ingaptrue
+      \Mfx@gap@ht\Mfx@scan@ht
+      \Mfx@gap@glue\z@
+      \Mfx@gap@pen\@M
+    \fi
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@scan@endgap}
+% At the top of a gap we weigh the break there, as described above.  The
+% size left is the height of the top part.  Scanning upwards, the breaks
+% come in the order last to first, so the first paragraph break within the
+% slack is the last one, and so on.  Once a break leaves more than the
+% slack unused and we have one that fits, no break further up can be
+% better, and we stop.
+%    \begin{macrocode}
+\def\MFX@scan@endgap{%
+  \mfx@scan@ingapfalse
+  \ifx\mfx@gap@top\MFX@scan@glue
+    \count@\z@
+  \else
+    \count@\Mfx@gap@pen
+  \fi
+  \ifnum\count@<\@M
+    \ifdim\Mfx@scan@size>\z@
+      \ifdim\Mfx@scan@size>\Mfx@scan@room\else
+        \ifdim\Mfx@any@size=\z@
+          \global\Mfx@any@size\Mfx@scan@size
+          \global\Mfx@any@ht\Mfx@gap@ht
+        \fi
+        \ifdim\dimexpr\Mfx@scan@room-\Mfx@scan@size\relax>\Mfx@scan@slack
+          \let\mfx@scan@next\relax
+        \else
+          \ifnum\Mfx@gap@glue>\@ne
+            \ifdim\Mfx@par@size=\z@
+              \global\Mfx@par@size\Mfx@scan@size
+              \global\Mfx@par@ht\Mfx@gap@ht
+            \fi
+          \fi
+          \ifnum\count@<\Mfx@best@pen
+            \global\Mfx@best@pen\count@
+            \global\Mfx@line@size\Mfx@scan@size
+            \global\Mfx@line@ht\Mfx@gap@ht
+          \fi
+        \fi
+      \fi
+    \fi
   \fi
 }
 %    \end{macrocode}
@@ -2500,6 +2860,19 @@
   }%
   \fi
 }
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\marginnotecontinued,\marginnotecontinues,
+%     \mfx@contprefix,\mfx@contsuffix}
+% The cues of a split note are kept in \cs{mfx@contprefix} (at the start of
+% the rest) and \cs{mfx@contsuffix} (at the end of the first part).  We set
+% them locally, so that a language's caption hooks can set them.
+%    \begin{macrocode}
+\def\mfx@contprefix{(continued)}
+\let\mfx@contsuffix\@empty
+\def\marginnotecontinued#1{\def\mfx@contprefix{#1}}
+\def\marginnotecontinues#1{\def\mfx@contsuffix{#1}}
 %    \end{macrocode}
 % \end{macros}
 %
