@@ -14,10 +14,10 @@
 % \ifexpectmoved is true (set it before \begin{document}), mode warn must
 % leave a footnote off its page: that is the problem the test reproduces.
 %
-% \mfxdeferrable and \marginnotepriority are provided if missing, so that
-% marginfix v1.4 can typeset the tests too (make regress).
+% \marginnotedeferrable and \marginnotepriority are provided if missing,
+% so that marginfix v1.4 can typeset the tests too (make regress).
 \makeatletter
-\providecommand\mfxdeferrable{}
+\providecommand\marginnotedeferrable{}
 \providecommand\marginnotepriority[1]{}
 \providecommand\prioritymode{warn}
 \marginnotepriority{\prioritymode}
@@ -26,7 +26,7 @@
 \newcounter{fnmark}
 \newcommand\ltnote[1]{%
   \stepcounter{ltnote}%
-  \marginpar{\foottextfont\mfxdeferrable\label{lt\theltnote}%
+  \marginpar{\foottextfont\marginnotedeferrable\label{lt\theltnote}%
     \textbf{LT\theltnote:} #1}}
 \newcommand\fn[1]{%
   \stepcounter{fnmark}\label{mk\thefnmark}%

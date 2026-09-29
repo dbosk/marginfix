@@ -83,10 +83,12 @@
 %        \LaTeX{} 2020-10-01 or later (the kernel's first aid only did this
 %        for v1.2).}
 % \changes{v1.5}{2026/09/27}
-%       {(Daniel Bosk) Add deferrable notes (\cs{mfxdeferrable}) and
+%       {(Daniel Bosk) Add deferrable notes (\cs{marginnotedeferrable}) and
 %        \cs{marginnotepriority}: warn when deferrable notes crowd an
 %        ordinary note off its page, and optionally move or split them
-%        to keep the ordinary notes with their callouts.}
+%        to keep the ordinary notes with their callouts; split notes
+%        between paragraphs where possible (\cs{marginsplitslack}), with
+%        the cues \cs{marginnotecontinued} and \cs{marginnotecontinues}.}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -218,19 +220,19 @@
 % commentary, which could just as well have continued on the next page,
 % stays.
 %
-% \DescribeMacro{\mfxdeferrable}
-% Writing \cs{mfxdeferrable} anywhere in the text of a note marks the note as
+% \DescribeMacro{\marginnotedeferrable}
+% Writing \cs{marginnotedeferrable} in the text of a note marks the note as
 % \emph{deferrable}:
 % \begin{verbatim}
-% \marginpar{\mfxdeferrable\footnotesize Why this example comes first: ...}
+% \marginpar{\footnotesize\marginnotedeferrable Why this example: ...}
 % \end{verbatim}
-% All other notes are \emph{ordinary}.  Put \cs{mfxdeferrable} after the
-% note's font commands, since it records the font for the cues of a split
-% note (see below).  A package that makes commentary
-% notes can mark them all by putting \cs{mfxdeferrable} in the note text it
-% builds, guarded by |\ifdefined\mfxdeferrable| so that it still works with
+% All other notes are \emph{ordinary}.  Put \cs{marginnotedeferrable} after
+% the note's font commands, since it records the font for the cues of a
+% split note (see below).  A package that makes commentary notes can mark
+% them all by putting \cs{marginnotedeferrable} in the note text it builds,
+% guarded by |\ifdefined\marginnotedeferrable| so that it still works with
 % older versions of marginfix.  Used outside a margin note,
-% \cs{mfxdeferrable} does nothing but warn.
+% \cs{marginnotedeferrable} does nothing but warn.
 %
 % \DescribeMacro{\marginnotepriority}
 % What marginfix does with the deferrable notes is set by
@@ -274,8 +276,8 @@
 % In the mode \texttt{split}, a note is split between paragraphs if it can
 % be: at the last paragraph break where the first part fits, unless that
 % leaves more than \cs{marginsplitslack} of the room unused (or more than
-% half of it).  The default is four lines of the text; set it with
-% \cs{setlength}.  Otherwise the note is split between lines, where the
+% half of it).  The default is four lines of the text.  Otherwise the note
+% is split between lines, where the
 % penalties of the note's paragraphs are lowest, so that, with the usual
 % club and widow penalties, no single line of a paragraph is left on either
 % side.  Only when no break fits that bill do we take the last line that
@@ -291,9 +293,9 @@
 % line.  (A line at the end of the first part takes room on the crowded
 % page, while the rest starts at the top of the next margin, where the
 % reader finds it anyway.)  An empty \meta{text} turns a cue off.  The cues
-% are set in the font of the note where it said \cs{mfxdeferrable}, so put
-% \cs{mfxdeferrable} after the note's font commands.  Both commands act
-% locally, so a package can set them for a language, e.g.\
+% are set in the font of the note where it said \cs{marginnotedeferrable},
+% so put \cs{marginnotedeferrable} after the note's font commands.  A
+% package can set the cues for a language, e.g.\
 % |\marginnotecontinued{(forts.)}| for Swedish.
 %
 % \section{Interaction with other packages}
@@ -927,10 +929,11 @@
 %
 % \section{Deferrable notes}
 % \label{sec:deferrable}
-% A note is deferrable if its text contains \cs{mfxdeferrable}.  We need to
-% know that in the output routine, where all we have of a note is its pair
-% of box registers, so \cs{mfxdeferrable} records it in a control sequence
-% named after the register numbers, |\mfx@cls@|\meta{number}.  It runs while
+% A note is deferrable if its text contains \cs{marginnotedeferrable}.  We
+% need to know that in the output routine, where all we have of a note is
+% its pair of box registers, so \cs{marginnotedeferrable} records it in a
+% control sequence named after the register numbers,
+% |\mfx@cls@|\meta{number}.  It runs while
 % the note's text is being typeset into its box, in \cs{@savemarbox}, and
 % then \cs{@currbox} and \cs{@marbox} name the two registers that the output
 % routine will later see.  (Which of the two ends up first in
@@ -943,7 +946,8 @@
 % every \cs{@savemarbox}.  With the optional argument of \cs{marginpar} there
 % are two calls for one note, so we clear only on the first, flagged by
 % \cs{mfx@marginpar@callout}; a mark in either text then marks the note.
-% The same hook tells \cs{mfxdeferrable} that it is inside a margin note.
+% The same hook tells \cs{marginnotedeferrable} that it is inside a margin
+% note.
 %
 % \begin{macros}{\ifmfx@fresh@note,\ifmfx@in@note,\mfx@note@reset,
 %     \MFX@forget}
@@ -972,7 +976,7 @@
 %    \end{macrocode}
 % \end{macros}
 %
-% \begin{macros}{\mfxdeferrable,\MFX@markdeferrable,\MFX@notefont,
+% \begin{macros}{\marginnotedeferrable,\MFX@markdeferrable,\MFX@notefont,
 %     \MFX@islow}
 % The mark itself, and the test for it: \cs{MFX@islow}\marg{box} sets
 % \cs{@tempswa} to whether the note in \emph{box} is deferrable.  The mark
@@ -998,12 +1002,12 @@
     \baselineskip\csname mfx@nb@\number#1\endcsname\relax
   \fi
 }
-\def\mfxdeferrable{%
+\def\marginnotedeferrable{%
   \ifmfx@in@note
     \MFX@markdeferrable\@currbox
     \MFX@markdeferrable\@marbox
   \else
-    \PackageWarning{marginfix}{\string\mfxdeferrable\space outside a
+    \PackageWarning{marginfix}{\string\marginnotedeferrable\space outside a
       margin note ignored}%
   \fi
 }
@@ -1905,8 +1909,8 @@
 % page break.
 %
 % The rest starts with the cue \cs{marginnotecontinued}, on a line of its
-% own, in the font the note had where it said \cs{mfxdeferrable}; we can't
-% run the cue into the first line, since that is typeset already.  We get
+% own, in the font the note had where it said \cs{marginnotedeferrable}; we
+% can't run the cue into the first line, since that is typeset already.  We get
 % the interline glue after the cue from \cs{vsplit} by setting
 % \cs{splittopskip} to the distance from the cue's depth to the next
 % baseline.  Without a cue, \cs{splittopskip} is the height of the rest's
