@@ -237,7 +237,7 @@
 % \DescribeMacro{\marginnotepriority}
 % What marginfix does with the deferrable notes is set by
 % \cs{marginnotepriority}\marg{mode}, in the preamble or anywhere in the
-% document (it applies from the next page that is built).  The modes are:
+% document.  The modes are:
 % \begin{description}
 % \item[\texttt{warn}] (the default) Notes are set exactly as without
 %   deferrable notes, but whenever an ordinary note moves to a later page
@@ -272,6 +272,12 @@
 % alone don't fit; nothing can help that.  A deferrable note may move more
 % than one page if the following margins are full as well.
 %
+% The mode is used when a page is built, and \TeX{} builds a page some
+% time after it has read the text on it.  So a new mode set in the middle of
+% the document applies from the next page built after the command is read,
+% which may be the page the command is on; put a \cs{clearpage} before it
+% to be sure.
+%
 % \DescribeMacro{\marginsplitslack}
 % In the mode \texttt{split}, a note is split between paragraphs if it can
 % be: at the last paragraph break where the first part fits, unless that
@@ -297,6 +303,16 @@
 % so put \cs{marginnotedeferrable} after the note's font commands.  A
 % package can set the cues for a language, e.g.\
 % |\marginnotecontinued{(forts.)}| for Swedish.
+%
+% Like the mode, these settings are used when a page is built, not where
+% the note is, so they are all global: \cs{marginnotepriority},
+% \cs{marginnotecontinued} and \cs{marginnotecontinues} take effect
+% whatever group they are in, from the next page built.
+% \cs{marginsplitslack} is a length, and the value that counts is the one
+% in force when the page is built.  Set it in the preamble with
+% \cs{setlength}, or anywhere with |\global\marginsplitslack=|\meta{length};
+% a \cs{setlength} in a group is forgotten at its end and may or may not be
+% in force when the page is built.
 %
 % \section{Interaction with other packages}
 % \subsection{memoir}
@@ -503,7 +519,8 @@
 % When a deferrable note is split (mode \texttt{split}), we prefer a
 % paragraph break that leaves at most this much of the room unused (but
 % never more than half of it) to a line break.  The default is four lines of
-% the normal text.
+% the normal text.  The value that counts is the one in force when a page is
+% built, so set it outside groups, or globally.
 %    \begin{macrocode}
 \newdimen\marginsplitslack
 \marginsplitslack=4\baselineskip
@@ -2870,13 +2887,13 @@
 % \begin{macros}{\marginnotecontinued,\marginnotecontinues,
 %     \mfx@contprefix,\mfx@contsuffix}
 % The cues of a split note are kept in \cs{mfx@contprefix} (at the start of
-% the rest) and \cs{mfx@contsuffix} (at the end of the first part).  We set
-% them locally, so that a language's caption hooks can set them.
+% the rest) and \cs{mfx@contsuffix} (at the end of the first part).  They
+% are used when a page is built, so we set them globally, like the mode.
 %    \begin{macrocode}
 \def\mfx@contprefix{(continued)}
 \let\mfx@contsuffix\@empty
-\def\marginnotecontinued#1{\def\mfx@contprefix{#1}}
-\def\marginnotecontinues#1{\def\mfx@contsuffix{#1}}
+\def\marginnotecontinued#1{\gdef\mfx@contprefix{#1}}
+\def\marginnotecontinues#1{\gdef\mfx@contsuffix{#1}}
 %    \end{macrocode}
 % \end{macros}
 %
