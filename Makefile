@@ -12,7 +12,10 @@ marginfix.pdf:marginfix.dtx
 
 .PHONY: test clean
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf anchorpage.pdf priority-test
+SPLITRULES_JOBS=splitrules-within splitrules-beyond splitrules-write
+
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf anchorpage.pdf priority-test \
+	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
@@ -72,6 +75,34 @@ $(PRIORITY_JOBS:=.pdf): %.pdf: marginfix.sty test/prioritycheck.tex \
 	@case $* in fill-warn) grep -q 'did not fit and' $*.log;; \
 	  split-split) grep -q 'between paragraphs (LT1)' $*.log;; esac \
 	  || { echo "$*: expected warning missing"; exit 1; }
+
+# Where notes are split (test/splitrules.tex): around the slack, and when
+# a \write stops the scan.
+$(SPLITRULES_JOBS:=.pdf): %.pdf: marginfix.sty test/splitrules.tex
+	t=$*; for i in 1 2 3; do \
+	  pdflatex -interaction=nonstopmode -jobname=$* \
+	    "\\def\\prioritymode{split}\\def\\splitcase{$${t#*-}}\\input{test/splitrules}" \
+	    >/dev/null || { grep -A3 '^!' $*.log; exit 1; }; done
+	@grep 'splitrules (' $*.log
+
+# Changing the mode in the document, and the file names of notes in
+# included files (test/modechange.tex): first in mode defer after the
+# change, then in mode warn throughout, where both inclusions warn.
+modechange.pdf modechange-warn.pdf: marginfix.sty test/modechange.tex \
+	test/modechange-part.tex test/prioritycheck.tex
+	m=$(if $(findstring warn,$@),warn,defer); for i in 1 2 3; do \
+	  pdflatex -interaction=nonstopmode -jobname=$(basename $@) \
+	    "\\def\\modeB{$$m}\\input{test/modechange}" >/dev/null \
+	  || { grep -A3 '^!' $(basename $@).log; exit 1; }; done
+	@grep 'prioritytest (' $(basename $@).log
+	@n=$$(grep -c 'Margin note from test/modechange-part.tex:' \
+	  $(basename $@).log); \
+	case $@ in modechange-warn.pdf) test $$n -eq 2;; *) test $$n -eq 1;; esac \
+	  || { echo "$@: expected warnings naming the included file"; exit 1; }
+
+.PHONY: off-test
+off-test:marginfix.sty
+	test/offmode.sh
 
 # The default mode must typeset every test exactly as the version before
 # deferrable notes did.

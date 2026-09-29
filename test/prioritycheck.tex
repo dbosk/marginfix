@@ -19,7 +19,7 @@
 \makeatletter
 \providecommand\marginnotedeferrable{}
 \providecommand\marginnotepriority[1]{}
-\providecommand\prioritymode{warn}
+\ifdefined\prioritymode\else\def\prioritymode{warn}\fi
 \marginnotepriority{\prioritymode}
 \newif\ifexpectmoved
 \newcounter{ltnote}

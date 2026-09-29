@@ -23,7 +23,9 @@ cp marginfix.sty "$tmp/sty-new/"
 export SOURCE_DATE_EPOCH=0 FORCE_SOURCE_DATE=1
 status=0
 for t in $tests; do
-  case $t in */prioritycheck.tex) continue;; esac
+  case $t in */prioritycheck.tex|*/modechange-part.tex) continue;; esac
+  # A test that sets a mode of its own is not about the default mode.
+  if grep -q '^% regress: skip' "$t"; then echo "skipped:   $(basename "$t" .tex)"; continue; fi
   job=$(basename "$t" .tex)
   for v in base new; do
     for i in 1 2 3; do
