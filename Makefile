@@ -12,7 +12,8 @@ marginfix.pdf:marginfix.dtx
 
 .PHONY: test clean
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf anchorpage.pdf priority-test
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf anchorpage.pdf priority-test \
+	modechange.pdf modechange-warn.pdf off-test
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
@@ -70,6 +71,25 @@ $(PRIORITY_JOBS:=.pdf): %.pdf: marginfix.sty test/prioritycheck.tex \
 	esac || { echo "$*: expected warning missing"; exit 1; }
 	@case $* in fill-warn) grep -q 'did not fit and' $*.log;; esac \
 	  || { echo "$*: expected warning missing"; exit 1; }
+
+# Changing the mode in the document, and the file names of notes in
+# included files (test/modechange.tex): first in mode defer after the
+# change, then in mode warn throughout, where both inclusions warn.
+modechange.pdf modechange-warn.pdf: marginfix.sty test/modechange.tex \
+	test/modechange-part.tex test/prioritycheck.tex
+	m=$(if $(findstring warn,$@),warn,defer); for i in 1 2 3; do \
+	  pdflatex -interaction=nonstopmode -jobname=$(basename $@) \
+	    "\\def\\modeB{$$m}\\input{test/modechange}" >/dev/null \
+	  || { grep -A3 '^!' $(basename $@).log; exit 1; }; done
+	@grep 'prioritytest (' $(basename $@).log
+	@n=$$(grep -c 'Margin note from test/modechange-part.tex:' \
+	  $(basename $@).log); \
+	case $@ in modechange-warn.pdf) test $$n -eq 2;; *) test $$n -eq 1;; esac \
+	  || { echo "$@: expected warnings naming the included file"; exit 1; }
+
+.PHONY: off-test
+off-test:marginfix.sty
+	test/offmode.sh
 
 clean:
 	rm *.log *.aux *.pdf tufte.out marginfix.sty
