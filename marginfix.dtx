@@ -12,10 +12,10 @@
 %
 %<package>\NeedsTeXFormat{LaTeX2e}
 %<package>\ProvidesPackage{marginfix}%
-           [2020/05/06 v1.2 Fix Margin Paragraphs]
+           [2026/09/27 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{1159}
+\CheckSum{2666}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -73,6 +73,22 @@
 % \changes{v1.2}{2020/05/06}
 %       {(SDH) Fix long-standing bug where margin notes called out in
 %        the last few points of a page were being entirely dropped.}
+% \changes{v1.3}{2026/06/23}
+%       {(Daniel Bosk) Keep each margin note on the page of its callout:
+%        record callout pages in the .aux and, on the next run, hold back
+%        notes that \LaTeX{} would otherwise set on the previous page.}
+% \changes{v1.4}{2026/09/22}
+%       {(Daniel Bosk) Hook into the kernel's \cs{@outputbox@attachfloats},
+%        so that notes are attached under the standard classes with
+%        \LaTeX{} 2020-10-01 or later (the kernel's first aid only did this
+%        for v1.2).}
+% \changes{v1.5}{2026/09/27}
+%       {(Daniel Bosk) Add deferrable notes (\cs{marginnotedeferrable}) and
+%        \cs{marginnotepriority}: warn when deferrable notes crowd an
+%        ordinary note off its page, and optionally move or split them
+%        to keep the ordinary notes with their callouts; split notes
+%        between paragraphs where possible (\cs{marginsplitslack}), with
+%        the cues \cs{marginnotecontinued} and \cs{marginnotecontinues}.}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -95,6 +111,21 @@
 % arranging them intelligently in the output routine.  The credit for the
 % concept behind this algorithm goes to Prof. Andy Ruina, who employed me
 % to work on some of his textbook macros in 2007--9.
+%
+% As of v1.3 the package also keeps each note on the page of its callout.
+% A \cs{marginpar} is a float, so \LaTeX{} can attach it to the page it is
+% assembling even when the page then breaks \emph{before} the line that
+% called it---leaving a note whose mark is at the top of a page set in the
+% margin of the previous page.  marginfix now records each callout's page in
+% the \texttt{.aux} file and, on the next run, holds such a note back until
+% its own page is shipped (requesting a rerun through the usual ``Label(s)
+% may have changed'' mechanism).  This is automatic and needs no markup;
+% like cross-references it simply takes an extra pass to settle.
+%
+% As of v1.5 notes can be marked as \emph{deferrable}: commentary that may
+% move to a later page, or be split across pages, so that the ordinary notes
+% after it (for instance footnotes set in the margin) stay beside their
+% callouts.  See section~\ref{sec:priority}.
 %
 % \section{Options}
 % There are currently no options that do anything yet.
@@ -175,6 +206,113 @@
 % using \cs{marginphantom}\oarg{pos}\marg{size}, which is essentially
 % equivalent to \cs{blockmargin}\oarg{pos}\cs{unblockmargin}\oarg{pos$+$size}.
 % Either argument may be negative to refer upward rather than downward.
+%
+% \section{Deferrable notes and priority}
+% \label{sec:priority}
+% marginfix sets the notes of a page in the order of their callouts, and when
+% the margin is full, the first note that doesn't fit moves to the next page,
+% taking every later note with it.  That is usually what we want, but not
+% when the notes are of two kinds.  Take a book with its footnotes in the
+% margin (\pkg{memoir}'s \cs{footnotesinmargin}) and long commentary notes
+% in the same margin, say for the teacher's edition.  A few commentary notes
+% called out high on a page can fill the margin, and then a footnote called
+% out lower down moves to the next page, away from its mark, while the
+% commentary, which could just as well have continued on the next page,
+% stays.
+%
+% \DescribeMacro{\marginnotedeferrable}
+% Writing \cs{marginnotedeferrable} in the text of a note marks the note as
+% \emph{deferrable}:
+% \begin{verbatim}
+% \marginpar{\footnotesize\marginnotedeferrable Why this example: ...}
+% \end{verbatim}
+% All other notes are \emph{ordinary}.  Put \cs{marginnotedeferrable} after
+% the note's font commands, since it records the font for the cues of a
+% split note (see below).  A package that makes commentary notes can mark
+% them all by putting \cs{marginnotedeferrable} in the note text it builds,
+% guarded by |\ifdefined\marginnotedeferrable| so that it still works with
+% older versions of marginfix.  Used outside a margin note,
+% \cs{marginnotedeferrable} does nothing but warn.
+%
+% \DescribeMacro{\marginnotepriority}
+% What marginfix does with the deferrable notes is set by
+% \cs{marginnotepriority}\marg{mode}, in the preamble or anywhere in the
+% document.  The modes are:
+% \begin{description}
+% \item[\texttt{warn}] (the default) Notes are set exactly as without
+%   deferrable notes, but whenever an ordinary note moves to a later page
+%   while deferrable notes ahead of it stayed, or didn't fit either, we warn,
+%   naming the ordinary note and the deferrable ones by the file and line
+%   where each note ends.  If a deferrable note that didn't fit took the
+%   notes after it along, the warning says so.  Then you know which note to
+%   shorten or re-anchor.
+% \item[\texttt{defer}] A deferrable note that is in the way moves, whole, to
+%   the next page, so that the ordinary notes after it fit on their page.
+%   The notes of each kind keep their order.  On the next page, the moved
+%   note comes after that page's ordinary notes, up to its first deferrable
+%   note, so that it doesn't push the next page's footnotes away from their
+%   marks in turn.  We warn about every note that moves this way.
+%   A deferrable note that doesn't fit at all moves to the next page too,
+%   but no longer takes the notes after it along: the ordinary notes after
+%   it that fit are still set on the page.  The deferrable notes after it
+%   move with it, though, so that they keep their order; and an ordinary
+%   note that doesn't fit still takes every later note along, so that
+%   footnotes never trade places.
+% \item[\texttt{split}] Like \texttt{defer}, but the note that is in the way
+%   is split, and so is a deferrable note that doesn't fit: what fits stays
+%   on the page, where its callout is, and the rest continues at the top of
+%   the next page.  If the note can't be split (too
+%   little room left, nothing to break it at, or a margin interrupted by
+%   \cs{blockmargin}), it moves whole as with \texttt{defer}.  We warn about
+%   every note that is split or moved.  See below for where notes are split
+%   and how the parts are marked.
+% \item[\texttt{off}] As \texttt{warn}, but without the warnings.
+% \end{description}
+% An ordinary note can still move to a later page, when the ordinary notes
+% alone don't fit; nothing can help that.  A deferrable note may move more
+% than one page if the following margins are full as well.
+%
+% The mode is used when a page is built, and \TeX{} builds a page some
+% time after it has read the text on it.  So a new mode set in the middle of
+% the document applies from the next page built after the command is read,
+% which may be the page the command is on; put a \cs{clearpage} before it
+% to be sure.
+%
+% \DescribeMacro{\marginsplitslack}
+% In the mode \texttt{split}, a note is split between paragraphs if it can
+% be: at the last paragraph break where the first part fits, unless that
+% leaves more than \cs{marginsplitslack} of the room unused (or more than
+% half of it).  The default is four lines of the text.  Otherwise the note
+% is split between lines, where the
+% penalties of the note's paragraphs are lowest, so that, with the usual
+% club and widow penalties, no single line of a paragraph is left on either
+% side.  Only when no break fits that bill do we take the last line that
+% fits.  A note is never split in the middle of a line, but it may be split
+% in the middle of a sentence.
+%
+% \DescribeMacro{\marginnotecontinued}\DescribeMacro{\marginnotecontinues}
+% The rest of a split note starts with a line saying
+% \cs{marginnotecontinued}\marg{text}, by default ``(continued)'', so that
+% it doesn't read as a note of its own.  Its first part can end with a line
+% saying \cs{marginnotecontinues}\marg{text}, set flush right, for
+% instance an arrow; by default that is empty, and then there is no such
+% line.  (A line at the end of the first part takes room on the crowded
+% page, while the rest starts at the top of the next margin, where the
+% reader finds it anyway.)  An empty \meta{text} turns a cue off.  The cues
+% are set in the font of the note where it said \cs{marginnotedeferrable},
+% so put \cs{marginnotedeferrable} after the note's font commands.  A
+% package can set the cues for a language, e.g.\
+% |\marginnotecontinued{(forts.)}| for Swedish.
+%
+% Like the mode, these settings are used when a page is built, not where
+% the note is, so they are all global: \cs{marginnotepriority},
+% \cs{marginnotecontinued} and \cs{marginnotecontinues} take effect
+% whatever group they are in, from the next page built.
+% \cs{marginsplitslack} is a length, and the value that counts is the one
+% in force when the page is built.  Set it in the preamble with
+% \cs{setlength}, or anywhere with |\global\marginsplitslack=|\meta{length};
+% a \cs{setlength} in a group is forgotten at its end and may or may not be
+% in force when the page is built.
 %
 % \section{Interaction with other packages}
 % \subsection{memoir}
@@ -377,6 +515,18 @@
 %    \end{macrocode}
 % \end{macros}
 %
+% \begin{macros}{\marginsplitslack}
+% When a deferrable note is split (mode \texttt{split}), we prefer a
+% paragraph break that leaves at most this much of the room unused (but
+% never more than half of it) to a line break.  The default is four lines of
+% the normal text.  The value that counts is the one in force when a page is
+% built, so set it outside groups, or globally.
+%    \begin{macrocode}
+\newdimen\marginsplitslack
+\marginsplitslack=4\baselineskip
+%    \end{macrocode}
+% \end{macros}
+%
 % \section{Plan of attack}
 % \subsection{\cs{marginpar}}
 % The default sequence of events for a \cs{marginpar} is roughly the following
@@ -501,12 +651,46 @@
   \expandafter\ifx\@marbox\Mfx@inject@insert
     \mfx@injected\global\let\mfx@injected\@empty
   \else
-    \MFX@cons\mfx@marginlist{%
-      \noexpand\mfx@build@note\@currbox\@marbox{\mfx@ypos}%
-      \noexpand\mfx@build@skip{\the\marginparpush}%
-    }%
+    \global\advance\mfx@placeid\@ne
+    \mfx@note@locate
+    \mfx@maybe@defer
   \fi
 %<debug>\MFX@debug{addmarginpar (exit): marginlist=\MFX@mac\mfx@marginlist}%
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\mfx@maybe@defer,\mfx@place@now,\mfx@defer@note}
+% This is where ``keep notes on their anchor's page'' hooks in.  Every
+% real marginpar is given a sequential id (\cs{mfx@placeid}) matching the
+% id assigned at callout time (\cs{mfx@callid}); see \cs{mfx@anchorpage}.
+% If a previous run recorded the page of this note's anchor (its callout)
+% and that page lies \emph{after} the page we are currently shipping, then
+% \cs{marginpar} drifted backwards across a page break: instead of setting
+% the note here we hold it in \cs{mfx@deferred} until its anchor page comes
+% around (see \cs{mfx@release@deferred}).  With no recorded anchor (first
+% run, or a brand-new note) we behave exactly as before.
+%    \begin{macrocode}
+\def\mfx@maybe@defer{%
+  \@ifundefined{mfx@ap@\the\mfx@placeid}%
+    {\mfx@place@now}%
+    {\ifnum\@nameuse{mfx@ap@\the\mfx@placeid}>\c@page
+       \mfx@defer@note
+     \else
+       \mfx@place@now
+     \fi}%
+}
+\def\mfx@place@now{%
+  \MFX@cons\mfx@marginlist{%
+    \noexpand\mfx@build@note\@currbox\@marbox{\mfx@ypos}%
+    \noexpand\mfx@build@skip{\the\marginparpush}%
+  }%
+}
+\def\mfx@defer@note{%
+  \MFX@cons\mfx@deferred{%
+    \noexpand\mfx@deferred@note\@currbox\@marbox
+      {\@nameuse{mfx@ap@\the\mfx@placeid}}%
+  }%
 }
 %    \end{macrocode}
 % \end{macros}
@@ -557,7 +741,9 @@
     \expandafter\@elt\expandafter\Mfx@inject@insert
     \@freelist}%
   \expandafter\def\expandafter\mfx@injected\expandafter{\mfx@injected#1}%
+  \mfx@in@injecttrue
   \marginpar{}%
+  \mfx@in@injectfalse
 }
 %    \end{macrocode}
 % \end{macros}
@@ -599,7 +785,291 @@
 \newdimen\Mfx@strutheight
 \edef\marginpar{%
   \unexpanded{\setbox\@tempboxa\hbox{\strut}\Mfx@strutheight\ht\@tempboxa}%
+  \unexpanded{\mfx@marginpar@callout}%
   \expandafter\unexpanded\expandafter{\marginpar}%
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \section{Keeping notes on their anchor's page}
+% A \cs{marginpar} is a float, and \LaTeX{} can attach it to the page it is
+% busy assembling even when the page eventually breaks \emph{before} the line
+% that called it---so a note whose callout sits at the top of a page can be
+% set in the margin of the \emph{previous} page.  marginfix arranges notes
+% within whatever page \LaTeX{} hands them to it, and can push overflow
+% forwards, but on its own it has no notion of which page a note ``belongs''
+% to, so it cannot repair this backwards drift.
+%
+% We fix it across two passes.  Each real marginpar is numbered in document
+% order, and at callout time we record the page of that callout in the
+% \texttt{.aux} file with a deferred \cs{write} (the same trick \cs{label}
+% uses, so the page is captured at shipout).  On the next run that recorded
+% \emph{anchor page} lets \cs{@addmarginpar} recognise a note that would be
+% set too early and hold it back until its anchor page is shipped.  Because
+% marginfix attaches margin material only after the body column is built,
+% margin notes never move the body's page breaks, so anchor pages are stable
+% and the process converges---usually in a single extra pass, requested
+% through the kernel's own rerun machinery.
+%
+% \begin{macros}{\mfx@callid,\mfx@placeid,\ifmfx@in@inject,\mfx@deferred}
+% Two counters number the marginpars: \cs{mfx@callid} at callout time and
+% \cs{mfx@placeid} in the output routine.  They stay in lock-step because
+% every real marginpar passes through each exactly once, in the same order.
+% \cs{ifmfx@in@inject} is true only while \cs{MFX@inject} fakes a
+% \cs{marginpar} for its own bookkeeping, so those are skipped.
+% \cs{mfx@deferred} holds notes waiting for their anchor page.
+%    \begin{macrocode}
+\newcount\mfx@callid
+\newcount\mfx@placeid
+\newif\ifmfx@in@inject
+\let\mfx@deferred\@empty
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\mfx@cpage}
+% \cs{mfx@cpage} expands to the raw (arabic) page number.  When it is
+% \cs{let} to \cs{relax} inside \cs{protected@write} it survives the write's
+% \cs{edef} unexpanded and then expands at shipout, giving us the page the
+% callout actually landed on (regardless of any fancy \cs{thepage} format).
+%    \begin{macrocode}
+\def\mfx@cpage{\number\c@page}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\mfx@marginpar@callout}
+% Prepended to \cs{marginpar}, this numbers each real callout and records its
+% anchor page for the next run.  It also notes where in the source the
+% callout is and that a new note is about to be set; both are for deferrable
+% notes (section~\ref{sec:deferrable}).
+%    \begin{macrocode}
+\def\mfx@marginpar@callout{%
+  \ifmfx@in@inject\else
+    \global\advance\mfx@callid\@ne
+    \global\mfx@fresh@notetrue
+    \expandafter\xdef\csname mfx@loc@\the\mfx@callid\endcsname{\mfx@where}%
+    \if@filesw
+      \protected@write\@auxout{\let\mfx@cpage\relax}{%
+        \string\mfx@anchorpage{\the\mfx@callid}{\mfx@cpage}}%
+    \fi
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\mfx@anchorpage}
+% This is what the \texttt{.aux} file calls back.  Normally (while the file
+% is read at \cs{begin}\texttt{\{document\}}) it just stores the anchor page
+% keyed by id.  During the kernel's end-of-run consistency check the aux is
+% re-read with \cs{@newl@bel} \cs{let} to \cs{@testdef}; we detect that and,
+% if an anchor page is new or has changed, set \cs{@tempswa} so the kernel
+% issues its standard ``Label(s) may have changed.  Rerun'' warning---which
+% \texttt{latexmk} and friends already act on.
+%    \begin{macrocode}
+\def\mfx@anchorpage#1#2{%
+  \ifx\@newl@bel\@testdef
+    \@ifundefined{mfx@ap@#1}%
+      {\@tempswatrue}%
+      {\def\reserved@a{#2}%
+       \expandafter\ifx\csname mfx@ap@#1\endcsname\reserved@a\else
+         \@tempswatrue
+       \fi}%
+  \else
+    \global\@namedef{mfx@ap@#1}{#2}%
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\mfx@release@deferred,\mfx@release@one,\mfx@deferred@note}
+% Run at the start of every \cs{MFX@combinefloats@before}.  We walk the
+% deferred list: a note whose anchor page is still ahead of the page being
+% shipped stays deferred; one whose page has arrived is released by prepending
+% it to \cs{mfx@marginlist}, ahead of that page's own notes and at the top of
+% the text block (its callout drifted from near the page top), so marginfix's
+% normal building and stacking take over from there.  Released notes are
+% collected in order and prepended as a block so several notes landing on the
+% same page keep their document order.
+%    \begin{macrocode}
+\def\mfx@release@deferred{%
+  \ifx\mfx@deferred\@empty\else
+    \let\mfx@deferred@kept\@empty
+    \let\mfx@released\@empty
+    \let\mfx@deferred@note\mfx@release@one
+    \mfx@deferred
+    \global\let\mfx@deferred\mfx@deferred@kept
+    \ifx\mfx@released\@empty\else
+      \xdef\mfx@marginlist{%
+        \unexpanded\expandafter{\mfx@released}%
+        \unexpanded\expandafter{\mfx@marginlist}}%
+    \fi
+  \fi
+}
+\def\mfx@release@one#1#2#3{%
+  \ifnum#3>\c@page
+    \MFX@cons\mfx@deferred@kept{\noexpand\mfx@deferred@note#1#2{#3}}%
+  \else
+    \MFX@cons\mfx@released{%
+      \noexpand\mfx@build@note#1#2{0pt}%
+      \noexpand\mfx@build@skip{\the\marginparpush}}%
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\mfx@flush@deferred,\mfx@flush@one}
+% A safety net: if a recorded anchor page is stale (e.g.\ the document shrank
+% since the run that wrote it) a deferred note's page might never come around.
+% \cs{dumpmargins} calls this at end of document to release everything that is
+% still waiting, so a note is never silently dropped---worst case it lands a
+% little late, exactly as an over-long note would today.
+%    \begin{macrocode}
+\def\mfx@flush@deferred{%
+  \ifx\mfx@deferred\@empty\else
+    \let\mfx@released\@empty
+    \let\mfx@deferred@note\mfx@flush@one
+    \mfx@deferred
+    \global\let\mfx@deferred\@empty
+    \ifx\mfx@released\@empty\else
+      \xdef\mfx@marginlist{%
+        \unexpanded\expandafter{\mfx@released}%
+        \unexpanded\expandafter{\mfx@marginlist}}%
+    \fi
+  \fi
+}
+\def\mfx@flush@one#1#2#3{%
+  \MFX@cons\mfx@released{%
+    \noexpand\mfx@build@note#1#2{0pt}%
+    \noexpand\mfx@build@skip{\the\marginparpush}}%
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \section{Deferrable notes}
+% \label{sec:deferrable}
+% A note is deferrable if its text contains \cs{marginnotedeferrable}.  We
+% need to know that in the output routine, where all we have of a note is
+% its pair of box registers, so \cs{marginnotedeferrable} records it in a
+% control sequence named after the register numbers,
+% |\mfx@cls@|\meta{number}.  It runs while
+% the note's text is being typeset into its box, in \cs{@savemarbox}, and
+% then \cs{@currbox} and \cs{@marbox} name the two registers that the output
+% routine will later see.  (Which of the two ends up first in
+% \cs{mfx@marginlist} depends on the order \LaTeX{} pops them, so we mark
+% both.)
+%
+% Registers are reused, so the mark of an earlier note must not stick to a
+% later one.  We clear both marks when a new note starts to be typeset, which
+% we recognise by \cs{@marginparreset}: \LaTeX{} calls it at the start of
+% every \cs{@savemarbox}.  With the optional argument of \cs{marginpar} there
+% are two calls for one note, so we clear only on the first, flagged by
+% \cs{mfx@marginpar@callout}; a mark in either text then marks the note.
+% The same hook tells \cs{marginnotedeferrable} that it is inside a margin
+% note.
+%
+% \begin{macros}{\ifmfx@fresh@note,\ifmfx@in@note,\mfx@note@reset,
+%     \MFX@forget}
+% \cs{MFX@forget} also clears the flag that the note was moved whole from
+% the previous page, which we need for placing it on the next
+% (\cs{MFX@carrylate}).  These are only settings of flags, so a document
+% without deferrable notes is typeset exactly as before.
+%    \begin{macrocode}
+\newif\ifmfx@fresh@note
+\newif\ifmfx@in@note
+\g@addto@macro\@marginparreset{\mfx@note@reset}
+\def\mfx@note@reset{%
+  \mfx@in@notetrue
+  \ifmfx@fresh@note
+    \global\mfx@fresh@notefalse
+    \MFX@forget\@currbox
+    \MFX@forget\@marbox
+  \fi
+}
+\def\MFX@forget#1{%
+  \expandafter\global\expandafter\let
+    \csname mfx@cls@\number#1\endcsname\relax
+  \expandafter\global\expandafter\let
+    \csname mfx@carried@\number#1\endcsname\relax
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\marginnotedeferrable,\MFX@markdeferrable,\MFX@notefont,
+%     \MFX@islow}
+% The mark itself, and the test for it: \cs{MFX@islow}\marg{box} sets
+% \cs{@tempswa} to whether the note in \emph{box} is deferrable.  The mark
+% also records the font and \cs{baselineskip} at that point, in
+% |\mfx@nf@|\meta{number} and |\mfx@nb@|\meta{number}, for the cues of a
+% split note, which are typeset in the output routine, where the note's
+% font is long gone.  We record the font by its NFSS attributes rather
+% than by \cs{font}, so that font commands in the cue text work relative to
+% it; and the \cs{baselineskip} as it is, since \cs{baselinestretch} in the
+% output routine may differ from the note's.  \cs{MFX@notefont}\marg{box}
+% selects them again, if there are any.
+%    \begin{macrocode}
+\def\MFX@markdeferrable#1{%
+  \expandafter\gdef\csname mfx@cls@\number#1\endcsname{}%
+  \expandafter\xdef\csname mfx@nf@\number#1\endcsname{%
+    \noexpand\fontsize{\f@size}{\the\baselineskip}%
+    \noexpand\usefont{\f@encoding}{\f@family}{\f@series}{\f@shape}}%
+  \expandafter\xdef\csname mfx@nb@\number#1\endcsname{\the\baselineskip}%
+}
+\def\MFX@notefont#1{%
+  \expandafter\ifx\csname mfx@nf@\number#1\endcsname\relax\else
+    \csname mfx@nf@\number#1\endcsname
+    \baselineskip\csname mfx@nb@\number#1\endcsname\relax
+  \fi
+}
+\def\marginnotedeferrable{%
+  \ifmfx@in@note
+    \MFX@markdeferrable\@currbox
+    \MFX@markdeferrable\@marbox
+  \else
+    \PackageWarning{marginfix}{\string\marginnotedeferrable\space outside a
+      margin note ignored}%
+  \fi
+}
+\def\MFX@islow#1{%
+  \expandafter\ifx\csname mfx@cls@\number#1\endcsname\relax
+    \@tempswafalse
+  \else
+    \@tempswatrue
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\mfx@where,\mfx@note@locate,\MFX@loc}
+% The warnings name notes by where they are in the source.  At callout time
+% \cs{mfx@marginpar@callout} stores the file and line under the callout's
+% id, and \cs{@addmarginpar} moves it to the note's register once it knows
+% the register, the same way the anchor page is matched to the note.  The
+% line is the one where the \cs{marginpar} is expanded, that is, where the
+% note's text ends.  In the main file \cs{CurrentFile} is empty, so we use
+% the job name instead.  \cs{MFX@loc}\marg{box} expands to the location, or
+% to a question mark if we don't know it.
+%    \begin{macrocode}
+\def\mfx@where{%
+  \ifx\CurrentFile\@empty
+    \jobname
+  \else\ifx\CurrentFile\@undefined
+    \jobname
+  \else
+    \ifx\CurrentFilePath\@empty\else\CurrentFilePath/\fi\CurrentFile
+  \fi\fi
+  :\the\inputlineno}
+\def\mfx@note@locate{%
+  \expandafter\global\expandafter\let
+    \csname mfx@boxloc@\number\@currbox\expandafter\endcsname
+    \csname mfx@loc@\the\mfx@placeid\endcsname
+  \expandafter\global\expandafter\let
+    \csname mfx@loc@\the\mfx@placeid\endcsname\relax
+}
+\def\MFX@loc#1{%
+  \expandafter\ifx\csname mfx@boxloc@\number#1\endcsname\relax
+    ?%
+  \else
+    \csname mfx@boxloc@\number#1\endcsname
+  \fi
 }
 %    \end{macrocode}
 % \end{macros}
@@ -614,6 +1084,19 @@
 \expandafter\def\expandafter\@combinefloats\expandafter{\expandafter
   \MFX@combinefloats@before\@combinefloats}
 %    \end{macrocode}
+% Since the 2020-10-01 release, the kernel's \cs{@makecol} no longer calls
+% \cs{@combinefloats} directly but through \cs{@outputbox@attachfloats},
+% which was \cs{let} to \cs{@combinefloats} before we patched it.  The
+% kernel's first-aid file repointed it for v1.2 of this package only, so we
+% must do it ourselves; otherwise our hook never runs under the standard
+% classes (\cs{memoir} has its own \cs{@makecol} that still calls
+% \cs{@combinefloats}), the notes are never attached, and the document ends
+% with ``Too many unprocessed floats'' and ``lost some margin notes''.
+%    \begin{macrocode}
+\ifdefined\@outputbox@attachfloats
+  \let\@outputbox@attachfloats\@combinefloats
+\fi
+%    \end{macrocode}
 % \end{macros}
 %
 % \begin{macros}{\MFX@combinefloats@before}
@@ -627,6 +1110,7 @@
 %    \begin{macrocode}
 \def\MFX@combinefloats@before{%
   \advance\Mfx@marginheight\marginheightadjustment
+  \mfx@release@deferred
   \MFX@buildmargin
   \MFX@attachmargin
   \global\Mfx@marginheight\z@
@@ -685,9 +1169,10 @@
 % with various parameters to indicate what material still needs to be
 % set in the margin.  This macro therefore must pull off the first $n>0$
 % of these commands to set on the current page ($n$ must be positive to
-% prevent infinite loops), and leave the rest to be deferred.  We do not
-% currently support taking notes out of order, though that is a possible
-% feature to allow in the future, on an opt-in basis.  The typeset
+% prevent infinite loops), and leave the rest to be deferred.  Notes are
+% taken in order, except that deferrable notes may give way to the ordinary
+% notes after them, on an opt-in basis (section~\ref{sec:priority@down}).
+% The typeset
 % material will be left in \cs{Mfx@marginbox}, which must have the same
 % height as \cs{@outputbox} (although because we \cs{unvbox}\cs{@outputbox}
 % in \cs{MFX@attachmargin}, we can't guarantee that this will correctly
@@ -767,15 +1252,20 @@
   \def\@elt##1##2{%
     \MFX@cons\mfx@pieceheights{\noexpand\@elt{\the\dimexpr##2-##1}}}%
   \mfx@marginpieces
+%    \end{macrocode}
+% Then the priority mode (\cs{marginnotepriority}) gets its say.  It sets
+% up the meanings of \cs{mfx@build@note}, \cs{mfx@build@skip}, and
+% \cs{mfx@build@clear} for the pass; in the modes \texttt{off} and
+% \texttt{warn} they are the ones defined below, and the mode
+% \texttt{warn} first looks at the list without changing anything
+% (section~\ref{sec:priority@down}).
+%    \begin{macrocode}
+  \csname MFX@down@\mfx@priority\endcsname
   \MFX@popdimen\Mfx@marginheight\mfx@pieceheights
 %    \end{macrocode}
 % Now we run forwards over the \cs{mfx@marginlist} to actually
 % operate on each thing in the margin.
 %    \begin{macrocode}
-  \let\mfx@build@note\MFX@margin@note@down
-  \let\mfx@build@skip\@gobble
-  \let\mfx@build@clear\MFX@build@clear@down
-  \let\mfx@marginout\@empty
   \MFX@run@clear\mfx@marginlist
 %<debug>\MFX@debug{buildmargin@down: RETURN
 %<debug>           marginout=\MFX@mac\mfx@marginout,
@@ -970,6 +1460,821 @@
 % not sure where that comes from.
 %    \begin{macrocode}
 \def\MFX@minus@inf{-4000\p@}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@down@off}
+% The setup of the pass as described above, which is all the modes
+% \texttt{off} and \texttt{warn} do.
+%    \begin{macrocode}
+\def\MFX@down@off{%
+  \let\mfx@build@note\MFX@margin@note@down
+  \let\mfx@build@skip\@gobble
+  \let\mfx@build@clear\MFX@build@clear@down
+  \let\mfx@marginout\@empty
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \subsection{Priority in the first pass}
+% \label{sec:priority@down}
+% The pass above takes the notes strictly in order: it adds up their
+% heights, and the first note that doesn't fit moves to the next page
+% together with every note after it.  Where a note is called out plays no
+% part in this; that only matters in the later passes, which place the notes
+% that were taken.  So if deferrable notes early in the list use up the
+% margin, an ordinary note later in the list moves, even though it would
+% have fit had one of the deferrable notes moved instead.
+%
+% To find out whether that happens, we run the pass as a \emph{trial} first:
+% the same fitting, in the same order, but without changing anything.  The
+% trial reports the first ordinary note~$N$ that doesn't fit and the last
+% deferrable note~$L$ that was taken before it.  In the mode \texttt{warn}
+% the trial follows the order exactly like the real pass (a deferrable note
+% that doesn't fit ends the page), and if it finds both $N$ and~$L$ we warn,
+% naming $N$ and the deferrable notes ahead of it, and then run the real pass
+% as always.  Hence that mode never changes the layout.
+%
+% In the modes \texttt{defer} and \texttt{split} we instead put $L$ on a
+% \emph{skip list} and try again, until no ordinary note is kept off the page
+% by a deferrable one.  In these trials a deferrable note that is skipped, or
+% doesn't fit, takes all later deferrable notes with it to the next page, so
+% that the deferrable notes keep their order, but the ordinary notes after
+% it are still tried; the ordinary notes keep their order as before, since
+% the first one that doesn't fit ends the page.  So the rule is: a
+% deferrable note never holds up an ordinary note after it, but no note
+% overtakes a note of its own kind, and nothing overtakes an ordinary note.
+% This also fills the page after a long deferrable note that doesn't fit at
+% all, which in the mode \texttt{warn} (as in the pass above) would take
+% every later note to the next page.  We could let a later, shorter
+% deferrable note fill the gap too, but commentary notes are often read in
+% sequence, and a note carried to the next page ahead of the next page's
+% own deferrable notes (\cs{MFX@carrylate}) relies on their order.
+% A deferrable note that
+% doesn't fit gives its space back: the fitting test moves on to the next
+% piece of the margin when a note doesn't fit in the current one, and a note
+% we skip must not use up the pieces.  Every trial skips one more note, so
+% there are at most as many trials as there are deferrable notes on the page.
+% Then the real pass takes the notes as the last trial did, moving the notes
+% on the skip list, and the later deferrable ones, to the next page.
+%
+% In the mode \texttt{split}, the first deferrable note to move, whether
+% skipped or not fitting, is split instead: the
+% last trial also tells us how much room is left at the bottom of the
+% margin, and we split the note to fit it, preferring a paragraph break
+% (\cs{MFX@split} explains how).  The top part takes
+% the note's place in the list, and the rest goes to the next page as a new
+% deferrable note, with a new pair of registers from \cs{@freelist}.  We
+% only split when the margin is a single piece, since then the room left
+% over is room below the note; with several pieces it might be in another
+% piece.
+%
+% A deferrable note moved whole goes to the top of the next page, like any
+% note that didn't fit.  But there it would push that page's ordinary notes
+% down, perhaps far from their marks, or even off that page too.  So in the
+% modes \texttt{defer} and \texttt{split} we first move such notes, before
+% the trials, to just before the first deferrable note of the page that
+% wasn't moved (to keep the deferrable notes in order), or to the end.  A
+% remainder of a split note stays at the top, where the reader continues.
+%
+% \begin{macros}{\Mfx@idx,\ifmfx@lowblocked,\ifmfx@full,\ifmfx@onepiece,
+%     \Mfx@savedheight,\Mfx@splitroom,\Mfx@splitmin,\Mfx@split@tmp,
+%     \Mfx@split@top}
+% We number the notes in the list with \cs{Mfx@idx}, so that the trials and
+% the real pass can refer to the same note.  \cs{ifmfx@lowblocked} is true
+% once a deferrable note has moved and so all later ones must, and
+% \cs{ifmfx@full} once the page is full.  \cs{Mfx@splitmin} is the least
+% room in which we split a note.
+%    \begin{macrocode}
+\newcount\Mfx@idx
+\newif\ifmfx@lowblocked
+\newif\ifmfx@full
+\newif\ifmfx@onepiece
+\newdimen\Mfx@savedheight
+\newdimen\Mfx@splitroom
+\newdimen\Mfx@splitmin
+\Mfx@splitmin=24\p@
+\newbox\Mfx@split@tmp
+\newbox\Mfx@split@top
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@down@warn,\MFX@down@defer,\MFX@down@split}
+% The three modes that look at the list.  The mode \texttt{split} differs
+% from \texttt{defer} only in the real pass, where it tests the mode.
+%    \begin{macrocode}
+\def\MFX@down@warn{%
+  \MFX@trials
+  \MFX@down@off
+}
+\def\MFX@down@defer{%
+  \MFX@carrylate
+  \MFX@trials
+  \Mfx@idx\z@
+  \mfx@lowblockedfalse
+  \mfx@fullfalse
+  \let\mfx@build@note\MFX@real@note
+  \let\mfx@build@skip\@gobble
+  \let\mfx@build@clear\MFX@real@clear
+  \let\mfx@marginout\@empty
+}
+\let\MFX@down@split\MFX@down@defer
+\def\MFX@priority@warn{warn}
+\def\MFX@priority@split{split}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@trials,\mfx@skipset}
+% The trials start from the list of piece heights, which we keep in
+% \cs{mfx@pieceheights@all} and put back after each trial, since the fitting
+% test uses it up.  The skip list \cs{mfx@skipset} holds note numbers
+% separated by commas.
+%    \begin{macrocode}
+\def\MFX@trials{%
+  \let\mfx@pieceheights@all\mfx@pieceheights
+  \begingroup
+    \count@\z@
+    \def\@elt##1{\advance\count@\@ne}%
+    \mfx@pieceheights
+    \ifnum\count@=\@ne
+      \aftergroup\mfx@onepiecetrue
+    \else
+      \aftergroup\mfx@onepiecefalse
+    \fi
+  \endgroup
+  \def\mfx@skipset{,}%
+  \MFX@trials@loop
+  \global\let\mfx@pieceheights\mfx@pieceheights@all
+}
+\def\MFX@trials@loop{%
+  \MFX@trial
+  \let\mfx@next\relax
+  \ifnum\mfx@trial@L>\z@
+    \ifx\mfx@priority\MFX@priority@warn
+      \PackageWarningNoLine{marginfix}{Margin note from \mfx@trial@Nloc\space
+        moved from page \thepage\MessageBreak to a later page; deferrable
+        margin notes\MessageBreak ahead of it: \mfx@trial@lows
+        \ifx\mfx@trial@blocker\@empty\else
+          \MessageBreak (\mfx@trial@blocker\space did not fit and
+          took\MessageBreak the notes after it along)%
+        \fi
+        \MessageBreak (shorten or move them, or use
+        \string\marginnotepriority)}%
+    \else
+      \edef\mfx@skipset{\mfx@skipset\mfx@trial@L,}%
+      \let\mfx@next\MFX@trials@loop
+    \fi
+  \fi
+  \mfx@next
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@trial,\MFX@trial@note,\MFX@trial@skip}
+% One trial runs over the list in a group, so that everything but the
+% results is forgotten afterwards; the results are \cs{mfx@trial@N} and
+% \cs{mfx@trial@L} (zero if there is none), the location of~$N$, the
+% locations of the deferrable notes taken before~$N$, the location of a
+% deferrable note that didn't fit and ended the page (mode \texttt{warn}),
+% and the room left.
+%    \begin{macrocode}
+\def\MFX@trial{%
+  \begingroup
+    \global\let\mfx@pieceheights\mfx@pieceheights@all
+    \MFX@popdimen\Mfx@marginheight\mfx@pieceheights
+    \Mfx@idx\z@
+    \mfx@lowblockedfalse
+    \mfx@fullfalse
+    \gdef\mfx@trial@N{0}%
+    \gdef\mfx@trial@L{0}%
+    \def\mfx@lastlow{0}%
+    \global\let\mfx@trial@lows\@empty
+    \global\let\mfx@trial@blocker\@empty
+    \let\mfx@build@note\MFX@trial@note
+    \let\mfx@build@skip\@gobble
+    \def\mfx@build@clear{\mfx@fulltrue}%
+    \mfx@marginlist
+    \global\Mfx@splitroom\Mfx@marginheight
+  \endgroup
+}
+%    \end{macrocode}
+% A deferrable note is taken if it isn't blocked and fits.  If it doesn't
+% fit, the mode \texttt{warn} fills the page, like the real pass, and counts
+% the note among those in the way; the other modes only block the later
+% deferrable notes.
+%    \begin{macrocode}
+\def\MFX@trial@note#1#2#3{%
+  \advance\Mfx@idx\@ne
+  \let\mfx@build@skip\@gobble
+  \ifnum\mfx@trial@N=\z@
+    \MFX@whichbox\@marbox#1#2%
+    \MFX@islow#1%
+    \if@tempswa
+      \ifmfx@full\else
+        \MFX@inskip
+        \ifin@\mfx@lowblockedtrue\fi
+        \ifmfx@lowblocked\else
+          \MFX@try@fit{\ht\@marbox+\dp\@marbox}%
+          \if@tempswa
+            \edef\mfx@lastlow{\the\Mfx@idx}%
+            \xdef\mfx@trial@lows{\mfx@trial@lows\MFX@loc#1\space}%
+            \let\mfx@build@skip\MFX@trial@skip
+          \else
+            \ifx\mfx@priority\MFX@priority@warn
+              \mfx@fulltrue
+              \edef\mfx@lastlow{\the\Mfx@idx}%
+              \xdef\mfx@trial@lows{\mfx@trial@lows\MFX@loc#1\space}%
+              \xdef\mfx@trial@blocker{\MFX@loc#1}%
+            \else
+              \mfx@lowblockedtrue
+            \fi
+          \fi
+        \fi
+      \fi
+    \else
+%    \end{macrocode}
+% An ordinary note that doesn't fit, or comes after the page is full, is our
+% $N$.
+%    \begin{macrocode}
+      \@tempswafalse
+      \ifmfx@full\else
+        \if\MFX@check@fit{}{\ht\@marbox+\dp\@marbox}%
+          \let\mfx@build@skip\MFX@trial@skip
+        \fi
+      \fi
+      \if@tempswa\else
+        \xdef\mfx@trial@N{\the\Mfx@idx}%
+        \xdef\mfx@trial@L{\mfx@lastlow}%
+        \xdef\mfx@trial@Nloc{\MFX@loc#1}%
+      \fi
+    \fi
+  \fi
+}
+\def\MFX@trial@skip#1{%
+  \if\MFX@check@fit{}{#1}\else
+    \mfx@fulltrue
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@try@fit,\MFX@inskip}
+% \cs{MFX@try@fit}\marg{size} is \cs{MFX@check@fit} for a deferrable note:
+% if the note doesn't fit, it puts back the space and pieces it used up.  It
+% leaves the result in \cs{@tempswa}.  \cs{MFX@inskip} sets \cs{ifin@} to
+% whether the current note is on the skip list.
+%    \begin{macrocode}
+\def\MFX@try@fit#1{%
+  \Mfx@savedheight\Mfx@marginheight
+  \let\mfx@saved@pieceheights\mfx@pieceheights
+  \if\MFX@check@fit{}{#1}%
+  \else
+    \Mfx@marginheight\Mfx@savedheight
+    \global\let\mfx@pieceheights\mfx@saved@pieceheights
+  \fi
+}
+\def\MFX@inskip{%
+  \edef\reserved@a{\noexpand\in@{,\the\Mfx@idx,}{\mfx@skipset}}%
+  \reserved@a
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@real@note}
+% The real pass of the modes \texttt{defer} and \texttt{split}.  It does
+% what \cs{MFX@margin@note@down} does, but takes and moves notes as the last
+% trial did.  A note on the skip list is split, if we may, or else moved;
+% either way we warn.  So is a deferrable note that doesn't fit, but then we
+% only warn if we split it, since marginfix has always moved such notes.
+% Only the first deferrable note to move gets this far: the deferrable
+% notes after it are blocked already.
+%    \begin{macrocode}
+\def\MFX@real@note#1#2#3{%
+  \advance\Mfx@idx\@ne
+  \MFX@whichbox\@marbox#1#2%
+  \ifmfx@full
+    \MFX@defer{#1}{#2}%
+  \else
+    \MFX@islow#1%
+    \if@tempswa
+      \ifmfx@lowblocked\in@false\else\MFX@inskip\fi
+      \ifin@
+        \MFX@give@way{#1}{#2}{#3}\@tempswatrue
+      \else
+        \ifmfx@lowblocked
+          \MFX@defer{#1}{#2}%
+        \else
+          \MFX@try@fit{\ht\@marbox+\dp\@marbox}%
+          \if@tempswa
+            \MFX@place{#1}{#2}{#3}%
+          \else
+            \MFX@give@way{#1}{#2}{#3}\@tempswafalse
+          \fi
+        \fi
+      \fi
+    \else
+      \if\MFX@check@fit{}{\ht\@marbox+\dp\@marbox}%
+        \MFX@place{#1}{#2}{#3}%
+      \else
+        \mfx@fulltrue
+        \MFX@defer{#1}{#2}%
+      \fi
+    \fi
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@give@way,\ifmfx@warnmove}
+% \cs{MFX@give@way}\marg{box}\marg{box}\marg{position}\marg{warn} moves the
+% first deferrable note that must move, splitting it in the mode
+% \texttt{split} if it can.  The last argument sets \cs{@tempswa} to whether
+% to warn when the note moves whole.  The reason given in the warnings is
+% the same either way, since a note that doesn't fit leaves its room to the
+% notes after it too.
+%    \begin{macrocode}
+\newif\ifmfx@warnmove
+\def\MFX@give@way#1#2#3#4{%
+  \mfx@lowblockedtrue
+  \edef\mfx@thisloc{\MFX@loc#1}%
+  #4%
+  \if@tempswa\mfx@warnmovetrue\else\mfx@warnmovefalse\fi
+  \@tempswafalse
+  \ifx\mfx@priority\MFX@priority@split
+    \ifmfx@onepiece
+      \MFX@split{#1}{#2}{#3}%
+    \fi
+  \fi
+  \if@tempswa
+    \PackageWarningNoLine{marginfix}{Deferrable margin note from
+      \mfx@thisloc\MessageBreak split at the end of page \thepage,
+      to keep the\MessageBreak margin notes after it on their page}%
+  \else
+    \ifmfx@warnmove
+      \PackageWarningNoLine{marginfix}{Deferrable margin note from
+        \mfx@thisloc\MessageBreak moved from page \thepage\space
+        to the next, to keep\MessageBreak the margin notes after it
+        on their page}%
+    \fi
+    \MFX@defer{#1}{#2}%
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@place,\MFX@defer,\MFX@real@skip,\MFX@real@clear}
+% Taking a note is as in \cs{MFX@margin@note@down}, and moving one as in
+% \cs{MFX@build@clear@down}, but a deferrable note moved whole is flagged
+% for \cs{MFX@carrylate}.  A skip is taken if it follows a note that was
+% taken and fits, and moved if it follows a note that was moved.  The first
+% \cs{clearmargin} fills the page, and later ones are kept for the next.
+%    \begin{macrocode}
+\def\MFX@place#1#2#3{%
+  \expandafter\global\expandafter\let
+    \csname mfx@carried@\number#1\endcsname\relax
+  \MFX@snoc\mfx@marginout{%
+    \noexpand\@cons\noexpand\@freelist#1%
+    \noexpand\@cons\noexpand\@freelist#2%
+    \noexpand\mfx@build@note\@marbox{#3}}%
+  \let\mfx@build@skip\MFX@real@skip
+}
+\def\MFX@defer#1#2{%
+  \MFX@islow#1%
+  \if@tempswa
+    \expandafter\gdef\csname mfx@carried@\number#1\endcsname{}%
+  \fi
+  \MFX@cons\mfx@marginlist{\noexpand\mfx@build@note#1#2{\MFX@minus@inf}}%
+  \def\mfx@build@skip##1{%
+    \MFX@cons\mfx@marginlist{\noexpand\mfx@build@skip{##1}}}%
+}
+\def\MFX@real@skip#1{%
+  \if\MFX@check@fit{}{#1}%
+    \MFX@snoc\mfx@marginout{\noexpand\mfx@build@skip{#1}}%
+  \else
+    \mfx@fulltrue
+    \let\mfx@build@skip\@gobble
+  \fi
+}
+\def\MFX@real@clear{%
+  \ifmfx@full
+    \MFX@cons\mfx@marginlist{\noexpand\mfx@build@clear}%
+  \else
+    \mfx@fulltrue
+  \fi
+  \let\mfx@build@skip\@gobble
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@split}
+% \cs{MFX@split}\marg{box}\marg{box}\marg{position} splits a note to the room
+% left by the last trial, less the skip after the note, and sets
+% \cs{@tempswa} if it did.
+%
+% We don't leave the choice of the break to \cs{vsplit}.  \cs{vsplit} weighs
+% each break by the badness of the top part plus the penalty there, but a
+% margin note has no stretchable glue, so every top part that doesn't fill
+% the room exactly is infinitely bad, all breaks cost the same, and
+% \cs{vsplit} takes the last one that fits, whatever its penalty.  So it
+% splits in the middle of a sentence, or of a citation, as happily as
+% between paragraphs, and ignores the club, widow and interline penalties
+% of the note's paragraphs.
+%
+% Instead we look at the list ourselves.  A note's box holds a \cs{vtop}
+% (see \cs{@savemarbox}); we take it out with \cs{lastbox} and then take a
+% copy of its list apart from the bottom, with \cs{lastbox}, \cs{unskip},
+% \cs{unkern} and \cs{unpenalty}, recognising each item by e-\TeX's
+% \cs{lastnodetype} and keeping track of the height of what is left above
+% it.  Between two lines there is a \emph{gap} of glue and penalties, and
+% the paragraph builder put the club, widow, interline and broken penalties
+% of the note's paragraphs there; a gap is a legal break if it starts with
+% glue (at no cost) or has a penalty below 10000 (at that cost).  Between
+% two paragraphs the gap holds the \cs{parskip} glue as well as the
+% interline glue, so a gap with at least two pieces of glue is a paragraph
+% break.  (\cs{parskip} is usually zero in a note, so we can't tell it by
+% its size.)  We can't take apart anything else, such as a \cs{write} from
+% a \cs{label} between paragraphs, so the scan stops there, and breaks
+% above it are not considered.
+%
+% Of the breaks where the top part fits, we choose
+% \begin{enumerate}
+% \item the last paragraph break that leaves at most the \emph{slack}
+%   unused, where the slack is \cs{marginsplitslack} but at most half the
+%   room;
+% \item otherwise the cheapest line break within the slack, the last of
+%   them if several cost the same, so that with the usual penalties we
+%   don't leave a single line of a paragraph on either side;
+% \item otherwise the last break that fits at all;
+% \item and if the scan found none, because it stopped early, the break
+%   \cs{vsplit} would take.
+% \end{enumerate}
+% The slack bounds what we give up for a paragraph break: the commentary
+% that moves to the next page grows by at most that much, and it pushes the
+% next page's notes down by as much.  A few lines is a fair price for not
+% cutting a thought in half, and the bound by half the room keeps us from
+% leaving a nearly empty margin when little room is left.  We don't try to
+% avoid breaking inside a sentence: \TeX{} can't see the characters at the
+% end of a line (Lua\TeX{} could), and a heuristic on the glue wouldn't be
+% reliable.  The paragraph breaks, and the penalties an author can add, are
+% what we have.
+%
+% Having chosen, we let \cs{vsplit} make the cut, to the height of the top
+% part we measured: without stretch it takes the last break that fits, and
+% that is ours, since the next break down is higher by at least a line.
+% \cs{vsplit} leaves whatever is in the list, \cs{write}s included, in the
+% part where it was, and drops the glue and penalties at the break, as at a
+% page break.
+%
+% The rest starts with the cue \cs{marginnotecontinued}, on a line of its
+% own, in the font the note had where it said \cs{marginnotedeferrable}; we
+% can't run the cue into the first line, since that is typeset already.  We get
+% the interline glue after the cue from \cs{vsplit} by setting
+% \cs{splittopskip} to the distance from the cue's depth to the next
+% baseline.  Without a cue, \cs{splittopskip} is the height of the rest's
+% first line, which the scan noted, so that the rest starts with a line, as
+% the note did.  Either way the rest is a \cs{vtop} like the note, and is
+% placed on the next page like any note moved to the top of the margin,
+% with its first baseline at \cs{topskip}.  The top part can end with the
+% cue \cs{marginnotecontinues}, set flush right, for which we reserve a
+% line.
+%
+% \begin{macros}{\Mfx@split@rest,\Mfx@scan@size,\Mfx@scan@room,
+%     \Mfx@scan@slack,\Mfx@scan@ht,\Mfx@gap@ht,\Mfx@gap@glue,\Mfx@gap@pen,
+%     \Mfx@best@pen,\Mfx@cut@size,\Mfx@cut@ht,\Mfx@par@size,\Mfx@par@ht,
+%     \Mfx@line@size,\Mfx@line@ht,\Mfx@any@size,\Mfx@any@ht,
+%     \ifmfx@scan@box,\ifmfx@scan@ingap}
+% The state of the scan: the height of what is left (\cs{Mfx@scan@size}),
+% the height of the last box taken off (\cs{Mfx@scan@ht}), and for the
+% current gap the height of the box below it, how much glue it has and its
+% lowest penalty.  A break is recorded by the height of the top part and
+% the height of the first line of the rest.
+%    \begin{macrocode}
+\newbox\Mfx@split@rest
+\newdimen\Mfx@scan@size
+\newdimen\Mfx@scan@room
+\newdimen\Mfx@scan@slack
+\newdimen\Mfx@scan@ht
+\newdimen\Mfx@gap@ht
+\newcount\Mfx@gap@glue
+\newcount\Mfx@gap@pen
+\newcount\Mfx@best@pen
+\newdimen\Mfx@cut@size
+\newdimen\Mfx@cut@ht
+\newdimen\Mfx@par@size
+\newdimen\Mfx@par@ht
+\newdimen\Mfx@line@size
+\newdimen\Mfx@line@ht
+\newdimen\Mfx@any@size
+\newdimen\Mfx@any@ht
+\newif\ifmfx@scan@box
+\newif\ifmfx@scan@ingap
+%    \end{macrocode}
+% \end{macros}
+%
+% First the split itself.  We work in a group, in the note's font, and take
+% the list out of the note's box.
+%    \begin{macrocode}
+\def\MFX@split#1#2#3{%
+  \begingroup
+    \global\let\mfx@split@ok\@empty
+    \MFX@notefont#1%
+    \Mfx@scan@room\dimexpr\Mfx@splitroom-\marginparpush-\p@\relax
+    \ifx\mfx@contsuffix\@empty\else
+      \advance\Mfx@scan@room-\baselineskip
+    \fi
+    \ifdim\Mfx@scan@room>\Mfx@splitmin
+      \setbox\z@\vbox{\unvcopy\@marbox\global\setbox\Mfx@split@tmp\lastbox}%
+      \ifvoid\Mfx@split@tmp\else
+        \setbox\Mfx@split@tmp\vbox{\unvbox\Mfx@split@tmp}%
+        \MFX@split@choose
+        \MFX@split@cut
+      \fi
+    \fi
+  \endgroup
+%    \end{macrocode}
+% If the split worked we need two free registers for the rest.  If we get
+% them, the top part replaces the note in both of its registers and is taken
+% (it fits, but we test it the usual way to use up the room), and the rest
+% goes to the next page right after it, as a deferrable note with the same
+% font for its cues, should it be split again.
+%    \begin{macrocode}
+  \@tempswafalse
+  \ifx\mfx@split@ok\@empty\else
+    \@next\mfx@restA\@freelist{%
+      \@next\mfx@restB\@freelist{\@tempswatrue}%
+        {\@cons\@freelist\mfx@restA}}{}%
+  \fi
+  \if@tempswa
+    \global\setbox#1\copy\Mfx@split@top
+    \global\setbox#2\box\Mfx@split@top
+    \global\setbox\mfx@restA\copy\Mfx@split@rest
+    \global\setbox\mfx@restB\box\Mfx@split@rest
+    \MFX@forget\mfx@restA
+    \MFX@forget\mfx@restB
+    \MFX@copyclass\mfx@restA#1%
+    \MFX@copyclass\mfx@restB#1%
+    \expandafter\xdef\csname mfx@boxloc@\number\mfx@restA\endcsname{%
+      \MFX@loc#1 (continued)}%
+    \MFX@try@fit{\ht#1+\dp#1}%
+    \if@tempswa
+      \MFX@place{#1}{#2}{#3}%
+    \else
+      \MFX@defer{#1}{#2}%
+    \fi
+    \MFX@cons\mfx@marginlist{%
+      \noexpand\mfx@build@note\mfx@restA\mfx@restB{\MFX@minus@inf}%
+      \noexpand\mfx@build@skip{\the\marginparpush}}%
+    \@tempswatrue
+  \fi
+}
+%    \end{macrocode}
+% \cs{MFX@copyclass}\marg{to}\marg{from} marks the note in box \emph{to}
+% deferrable, with the font of the note in box \emph{from}.
+%    \begin{macrocode}
+\def\MFX@copyclass#1#2{%
+  \expandafter\gdef\csname mfx@cls@\number#1\endcsname{}%
+  \expandafter\global\expandafter\let
+    \csname mfx@nf@\number#1\expandafter\endcsname
+    \csname mfx@nf@\number#2\endcsname
+  \expandafter\global\expandafter\let
+    \csname mfx@nb@\number#1\expandafter\endcsname
+    \csname mfx@nb@\number#2\endcsname
+}
+%    \end{macrocode}
+% Choosing the break: the slack, then the scan, in a box we throw away, and
+% then the choice in order of preference, leaving the height of the top
+% part and of the rest's first line in \cs{Mfx@cut@size} and
+% \cs{Mfx@cut@ht}.  If the scan found nothing, we cut at the room and guess
+% the first line to be as high as a strut.
+%    \begin{macrocode}
+\def\MFX@split@choose{%
+  \Mfx@scan@slack\marginsplitslack
+  \ifdim\Mfx@scan@slack>.5\Mfx@scan@room
+    \Mfx@scan@slack.5\Mfx@scan@room
+  \fi
+  \global\Mfx@par@size\z@
+  \global\Mfx@line@size\z@
+  \global\Mfx@any@size\z@
+  \global\Mfx@best@pen\@M
+  \Mfx@scan@size\dimexpr\ht\Mfx@split@tmp+\dp\Mfx@split@tmp\relax
+  \setbox\z@\vbox{\unvcopy\Mfx@split@tmp\MFX@scan}%
+  \ifdim\Mfx@par@size>\z@
+    \Mfx@cut@size\Mfx@par@size
+    \Mfx@cut@ht\Mfx@par@ht
+  \else\ifdim\Mfx@line@size>\z@
+    \Mfx@cut@size\Mfx@line@size
+    \Mfx@cut@ht\Mfx@line@ht
+  \else\ifdim\Mfx@any@size>\z@
+    \Mfx@cut@size\Mfx@any@size
+    \Mfx@cut@ht\Mfx@any@ht
+  \else
+    \Mfx@cut@size\Mfx@scan@room
+    \Mfx@cut@ht\ht\strutbox
+  \fi\fi\fi
+}
+%    \end{macrocode}
+% Cutting, and putting both parts into \cs{vtop}s, with their cues.  The
+% top part must not be empty, must fit, and must leave a rest.  Without a
+% cue, the rest begins with the (zero) glue from \cs{splittopskip}, so
+% \cs{vtop} would give it no height; we set its height to that of its first
+% line, which puts the first baseline at the reference point, as in the
+% note.
+%    \begin{macrocode}
+\def\MFX@split@cut{%
+  \splitmaxdepth\maxdimen
+  \vbadness\@M
+  \vfuzz\maxdimen
+  \ifx\mfx@contprefix\@empty
+    \splittopskip\Mfx@cut@ht
+  \else
+    \setbox\tw@\hbox{\mfx@contprefix}%
+    \splittopskip\dimexpr\baselineskip-\dp\tw@\relax
+  \fi
+  \setbox\Mfx@split@top\vsplit\Mfx@split@tmp to \Mfx@cut@size
+  \setbox\Mfx@split@top\vbox{\unvbox\Mfx@split@top}%
+  \dimen@\dimexpr\ht\Mfx@split@top+\dp\Mfx@split@top\relax
+  \ifdim\dimen@>\z@
+    \ifdim\dimen@>\Mfx@scan@room\else
+      \ifvoid\Mfx@split@tmp\else
+        \dimen@\dp\Mfx@split@top
+        \dimen@ii\wd\Mfx@split@top
+        \global\setbox\Mfx@split@top\vbox{\vtop{%
+          \unvbox\Mfx@split@top
+          \ifx\mfx@contsuffix\@empty\else
+            \prevdepth\dimen@
+            \hbox to\dimen@ii{\hfil\mfx@contsuffix}%
+          \fi}}%
+        \ifx\mfx@contprefix\@empty
+          \setbox\z@\vtop{\unvbox\Mfx@split@tmp}%
+          \dp\z@\dimexpr\dp\z@-\Mfx@cut@ht\relax
+          \ht\z@\Mfx@cut@ht
+        \else
+          \setbox\z@\vtop{\box\tw@\unvbox\Mfx@split@tmp}%
+        \fi
+        \global\setbox\Mfx@split@rest\vbox{\box\z@}%
+        \gdef\mfx@split@ok{ok}%
+      \fi
+    \fi
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@scan,\MFX@scan@step}
+% The scan runs inside the box being built, where \cs{lastbox} and friends
+% work.  It takes items off until the list is empty, or it meets an item it
+% can't take off, or \cs{MFX@scan@endgap} finds that the breaks from there
+% on leave more than the slack unused.
+%    \begin{macrocode}
+\def\MFX@scan{%
+  \mfx@scan@boxfalse
+  \mfx@scan@ingapfalse
+  \MFX@scan@step
+}
+\def\MFX@scan@step{%
+  \let\mfx@scan@next\MFX@scan@step
+  \ifcase\lastnodetype
+    \let\mfx@scan@next\relax % 0: a character
+  \or\MFX@scan@box           % 1: an hbox
+  \or\MFX@scan@box           % 2: a vbox
+  \or\let\mfx@scan@next\relax\or\let\mfx@scan@next\relax
+  \or\let\mfx@scan@next\relax\or\let\mfx@scan@next\relax
+  \or\let\mfx@scan@next\relax\or\let\mfx@scan@next\relax
+  \or\let\mfx@scan@next\relax\or\let\mfx@scan@next\relax
+  \or\MFX@scan@glue          % 11
+  \or\MFX@scan@kern          % 12
+  \or\MFX@scan@penalty       % 13
+  \else\let\mfx@scan@next\relax % -1: empty, or anything else
+  \fi
+  \mfx@scan@next
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@scan@box,\MFX@scan@glue,\MFX@scan@kern,
+%     \MFX@scan@penalty,\MFX@scan@gapitem}
+% Taking off one item.  A box ends the gap below it, if any.  The other
+% items belong to a gap if there is a box below them.
+%    \begin{macrocode}
+\def\MFX@scan@box{%
+  \ifmfx@scan@ingap\MFX@scan@endgap\fi
+  \setbox\z@\lastbox
+  \advance\Mfx@scan@size-\dimexpr\ht\z@+\dp\z@\relax
+  \Mfx@scan@ht\ht\z@
+  \mfx@scan@boxtrue
+}
+\def\MFX@scan@glue{%
+  \MFX@scan@gapitem
+  \advance\Mfx@scan@size-\lastskip
+  \unskip
+  \advance\Mfx@gap@glue\@ne
+  \let\mfx@gap@top\MFX@scan@glue
+}
+\def\MFX@scan@kern{%
+  \MFX@scan@gapitem
+  \advance\Mfx@scan@size-\lastkern
+  \unkern
+  \let\mfx@gap@top\MFX@scan@kern
+}
+\def\MFX@scan@penalty{%
+  \MFX@scan@gapitem
+  \ifnum\lastpenalty<\Mfx@gap@pen \Mfx@gap@pen\lastpenalty \fi
+  \unpenalty
+  \let\mfx@gap@top\MFX@scan@penalty
+}
+\def\MFX@scan@gapitem{%
+  \ifmfx@scan@box
+    \ifmfx@scan@ingap\else
+      \mfx@scan@ingaptrue
+      \Mfx@gap@ht\Mfx@scan@ht
+      \Mfx@gap@glue\z@
+      \Mfx@gap@pen\@M
+    \fi
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@scan@endgap}
+% At the top of a gap we weigh the break there, as described above.  The
+% size left is the height of the top part.  Scanning upwards, the breaks
+% come in the order last to first, so the first paragraph break within the
+% slack is the last one, and so on.  Once a break leaves more than the
+% slack unused and we have one that fits, no break further up can be
+% better, and we stop.
+%    \begin{macrocode}
+\def\MFX@scan@endgap{%
+  \mfx@scan@ingapfalse
+  \ifx\mfx@gap@top\MFX@scan@glue
+    \count@\z@
+  \else
+    \count@\Mfx@gap@pen
+  \fi
+  \ifnum\count@<\@M
+    \ifdim\Mfx@scan@size>\z@
+      \ifdim\Mfx@scan@size>\Mfx@scan@room\else
+        \ifdim\Mfx@any@size=\z@
+          \global\Mfx@any@size\Mfx@scan@size
+          \global\Mfx@any@ht\Mfx@gap@ht
+        \fi
+        \ifdim\dimexpr\Mfx@scan@room-\Mfx@scan@size\relax>\Mfx@scan@slack
+          \let\mfx@scan@next\relax
+        \else
+          \ifnum\Mfx@gap@glue>\@ne
+            \ifdim\Mfx@par@size=\z@
+              \global\Mfx@par@size\Mfx@scan@size
+              \global\Mfx@par@ht\Mfx@gap@ht
+            \fi
+          \fi
+          \ifnum\count@<\Mfx@best@pen
+            \global\Mfx@best@pen\count@
+            \global\Mfx@line@size\Mfx@scan@size
+            \global\Mfx@line@ht\Mfx@gap@ht
+          \fi
+        \fi
+      \fi
+    \fi
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@carrylate,\MFX@cl@flush}
+% Before the trials, \cs{MFX@carrylate} moves the deferrable notes that were
+% moved whole from the previous page to just before the first deferrable
+% note that wasn't, or to the end of the list, each with the skip after it.
+% We collect them in \cs{mfx@cl@carried} and flush them into the new list
+% \cs{mfx@cl@out} when we meet a deferrable note or a \cs{clearmargin}.
+%    \begin{macrocode}
+\def\MFX@carrylate{%
+  \begingroup
+    \global\let\mfx@cl@carried\@empty
+    \global\let\mfx@cl@out\@empty
+    \def\mfx@cl@add{\MFX@cons\mfx@cl@out}%
+    \def\mfx@build@note##1##2##3{%
+      \expandafter\ifx\csname mfx@carried@\number##1\endcsname\relax
+        \MFX@islow##1%
+        \if@tempswa\MFX@cl@flush\fi
+        \def\mfx@cl@add{\MFX@cons\mfx@cl@out}%
+      \else
+        \def\mfx@cl@add{\MFX@cons\mfx@cl@carried}%
+      \fi
+      \mfx@cl@add{\noexpand\mfx@build@note##1##2{##3}}}%
+    \def\mfx@build@skip##1{\mfx@cl@add{\noexpand\mfx@build@skip{##1}}}%
+    \def\mfx@build@clear{%
+      \MFX@cl@flush
+      \def\mfx@cl@add{\MFX@cons\mfx@cl@out}%
+      \mfx@cl@add{\noexpand\mfx@build@clear}}%
+    \mfx@marginlist
+    \MFX@cl@flush
+  \endgroup
+  \global\let\mfx@marginlist\mfx@cl@out
+}
+\def\MFX@cl@flush{%
+  \xdef\mfx@cl@out{\unexpanded\expandafter{\mfx@cl@out}%
+    \unexpanded\expandafter{\mfx@cl@carried}}%
+  \global\let\mfx@cl@carried\@empty
+}
 %    \end{macrocode}
 % \end{macros}
 %
@@ -1428,6 +2733,7 @@
 %    \begin{macrocode}
 \def\dumpmargins{%
 %<debug>\MFX@debug{dumpmargins}%
+  \mfx@flush@deferred
   \loop
   \unless\ifx\mfx@marginlist\@empty
 %<debug>\MFX@debug{dumpmargins: marginlist=\MFX@mac\mfx@marginlist}%
@@ -1574,6 +2880,35 @@
     \fi
   }%
   \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\marginnotecontinued,\marginnotecontinues,
+%     \mfx@contprefix,\mfx@contsuffix}
+% The cues of a split note are kept in \cs{mfx@contprefix} (at the start of
+% the rest) and \cs{mfx@contsuffix} (at the end of the first part).  They
+% are used when a page is built, so we set them globally, like the mode.
+%    \begin{macrocode}
+\def\mfx@contprefix{(continued)}
+\let\mfx@contsuffix\@empty
+\def\marginnotecontinued#1{\gdef\mfx@contprefix{#1}}
+\def\marginnotecontinues#1{\gdef\mfx@contsuffix{#1}}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\marginnotepriority,\mfx@priority}
+% The mode is kept by name in \cs{mfx@priority}, and \cs{MFX@buildmargin@down}
+% calls |\MFX@down@|\meta{mode}, so a mode is valid if that macro exists.
+% We expand the name, since we compare it with \cs{ifx}, and the argument
+% may be a macro.  The default is \texttt{warn}.
+%    \begin{macrocode}
+\def\mfx@priority{warn}
+\def\marginnotepriority#1{%
+  \@ifundefined{MFX@down@#1}%
+    {\PackageError{marginfix}{Unknown margin note priority `#1'}%
+       {Use one of warn, defer, split or off.}}%
+    {\xdef\mfx@priority{#1}}%
 }
 %    \end{macrocode}
 % \end{macros}
