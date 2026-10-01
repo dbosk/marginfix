@@ -1,0 +1,100 @@
+% Test of the rules for where a deferrable note is split (mode split).
+%
+% Page 1 has an ordinary note (a rule) at the top, and then a deferrable
+% note of two paragraphs, P1 and P2, too long for the room left but short
+% enough for a page, and a third, short one, P3.  We measure P1 and the
+% room here, and so U, the room the paragraph break between P1 and P2
+% leaves unused.  Labels at the start and end of each paragraph show where
+% the note was split.  The case is chosen by \splitcase:
+%
+%   within  \marginsplitslack is U+3pt: the note must be split between P1
+%           and P2 (P1 ends on page 1, P2 starts on page 2);
+%   beyond  \marginsplitslack is U-3pt: the note must be split within P2
+%           (P2 starts on page 1 and ends on page 2);
+%   write   as within, but with a \label between P2 and P3 in vertical
+%           mode, which the scan can't take apart, so it can't see the
+%           paragraph break and must fall back to the last line that fits:
+%           P2 starts on page 1 and ends on page 2, and the \label is on
+%           page 2 with P3.
+%
+% Run with pdflatex -jobname=splitrules-within
+%   "\def\prioritymode{split}\def\splitcase{within}\input{test/splitrules}"
+% Needs three runs.  In the other modes it only has to typeset.
+\documentclass[a4paper]{memoir}
+\setlrmarginsandblock{2cm}{6cm}{*}
+\setmarginnotes{1em}{4.5cm}{1em}
+\checkandfixthelayout
+\usepackage{marginfix}
+\usepackage{lipsum}
+\providecommand\marginnotedeferrable{}
+\providecommand\marginnotepriority[1]{}
+\ifdefined\prioritymode\else\def\prioritymode{warn}\fi
+\ifdefined\splitcase\else\def\splitcase{within}\fi
+\marginnotepriority{\prioritymode}
+\makeatletter
+\newcommand\Pone{\lipsum*[1]\lipsum*[2][1-10]}
+\newcommand\Ptwo{\lipsum*[3][1-10]}
+\newcommand\Pthree{\lipsum*[4][1-2]}
+% In case write, a \label in vertical mode, between P2 and P3.
+\newcommand\maybewrite{%
+  \def\reserved@a{write}\ifx\splitcase\reserved@a\label{w}\fi}
+\newcommand\notebox[1]{\@savemarbox\@tempboxa{#1}\box\@tempboxa}
+\newdimen\ruleht
+\newdimen\Pht
+\newdimen\Uroom
+\AtBeginDocument{%
+  \setbox\z@\vbox{\notebox{\rule{1pt}{100pt}}}%
+  \ruleht\dimexpr\ht\z@+\dp\z@\relax
+  \setbox\z@\vbox{\notebox{\foottextfont\Pone}}%
+  \Pht\dimexpr\ht\z@+\dp\z@\relax
+  % the room left for the note, less the skips after both notes
+  \Uroom\dimexpr\textheight-\ruleht-2\marginparpush-\Pht\relax
+  \setbox\z@\vbox{\notebox{\foottextfont\Pone\par\Ptwo\par\Pthree}}%
+  \typeout{splitrules: rule \the\ruleht, P1 \the\Pht, U \the\Uroom,
+    note \the\dimexpr\ht\z@+\dp\z@\relax, text height \the\textheight}%
+  \ifdefined\marginsplitslack % not in marginfix v1.4 (make regress)
+    \def\reserved@a{beyond}%
+    \ifx\splitcase\reserved@a
+      \global\marginsplitslack\dimexpr\Uroom-3pt\relax
+    \else
+      \global\marginsplitslack\dimexpr\Uroom+3pt\relax
+    \fi
+  \fi}
+\def\pg#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax -1\else
+    \expandafter\expandafter\expandafter\pg@second
+      \csname r@#1\endcsname\@nil\fi}
+\def\pg@second#1#2#3\@nil{#2}
+\def\expect#1#2{%
+  \ifnum\pg{#1}=#2\relax\else
+    \PackageError{prioritytest}{#1 on page \pg{#1}, expected page #2
+      (case \splitcase)}\@ehc
+  \fi}
+\def\reserved@a{split}
+\ifx\prioritymode\reserved@a
+  \AtEndDocument{%
+    \ifnum\pg{e2}<\z@
+      \typeout{splitrules: labels undefined, rerun to check}%
+    \else
+      \expect{s1}{1}%
+      \def\reserved@a{within}%
+      \ifx\splitcase\reserved@a
+        \expect{e1}{1}\expect{s2}{2}%
+      \else
+        \expect{s2}{1}\expect{e2}{2}%
+      \fi
+      \def\reserved@a{write}%
+      \ifx\splitcase\reserved@a \expect{w}{2}\fi
+      \typeout{splitrules (\splitcase): split where expected}%
+    \fi}
+\fi
+\makeatother
+\begin{document}
+\marginpar{\rule{1pt}{100pt}}%
+\marginpar{\foottextfont\marginnotedeferrable
+  \leavevmode\label{s1}\Pone\label{e1}\par
+  \leavevmode\label{s2}\Ptwo\label{e2}\par
+  \maybewrite
+  \leavevmode\label{s3}\Pthree\label{e3}}%
+\lipsum[1-12]
+\end{document}

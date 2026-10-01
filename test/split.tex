@@ -1,0 +1,69 @@
+% Test for where deferrable notes are split (mode split), and the cue.
+%
+% On page 1, LT1 is too long to fit with the footnotes after it.  It has
+% six paragraphs, with a label at the start (aS<i>) and end (aE<i>) of
+% each: it must be split, and between two paragraphs, so every paragraph
+% must be on one page, and the first and the last on consecutive pages.  On
+% page 3, LT2 is one long paragraph, so it must be split between two lines:
+% its first and last labels (b1, b2) must be on consecutive pages.  Each
+% rest must start with the cue, and each first part end with the cue at its
+% end, which here carry labels (cue1, cue2; end1, end2).  In
+% the other modes only the checks of prioritycheck.tex apply.  Needs three
+% runs.
+\documentclass[a4paper]{memoir}
+\setlrmarginsandblock{2cm}{6cm}{*}
+\setmarginnotes{1em}{4.5cm}{1em}
+\checkandfixthelayout
+\usepackage{marginfix}
+\footnotesinmargin
+\usepackage{lipsum}
+\input{test/prioritycheck}
+\expectmovedtrue
+\newcounter{cue}
+\newcounter{endcue}
+\providecommand\marginnotecontinued[1]{}
+\providecommand\marginnotecontinues[1]{}
+\marginnotecontinued{\stepcounter{cue}\label{cue\thecue}(continued)}
+\marginnotecontinues{\stepcounter{endcue}\label{end\theendcue}$\rightarrow$}
+\makeatletter
+\def\samepage#1#2{%
+  \ifnum\pt@page{#1}=\pt@page{#2}\else
+    \PackageError{prioritytest}{#1 on page \pt@page{#1}, #2 on page
+      \pt@page{#2}: expected the same page}\@ehc
+  \fi}
+\def\nextpage#1#2{%
+  \ifnum\numexpr\pt@page{#1}+1\relax=\pt@page{#2}\relax\else
+    \PackageError{prioritytest}{#1 on page \pt@page{#1}, #2 on page
+      \pt@page{#2}: expected the next page}\@ehc
+  \fi}
+\def\reserved@a{split}
+\ifx\prioritymode\reserved@a
+  \AtEndDocument{%
+    \ifnum\pt@page{cue2}<\z@
+      \typeout{prioritytest: labels undefined, rerun to check}%
+    \else
+      \@for\reserved@a:={1,2,3,4,5,6}\do{\samepage{aS\reserved@a}{aE\reserved@a}}%
+      \nextpage{aS1}{aE6}\samepage{aE6}{cue1}\samepage{aS1}{end1}%
+      \nextpage{b1}{b2}\samepage{b2}{cue2}\samepage{b1}{end2}%
+      \typeout{prioritytest: split between paragraphs (LT1) and between
+        lines (LT2) checked}%
+    \fi}
+\fi
+\makeatother
+\newcommand\lpar[3]{\leavevmode\label{aS#1}\lipsum*[#2][#3]\label{aE#1}}
+\begin{document}
+\chapter{Test}
+\ltnote{\lpar{1}{1}{1-9}\par\lpar{2}{2}{1-7}\par\lpar{3}{3}{1-8}\par
+  \lpar{4}{4}{1-8}\par\lpar{5}{5}{1-8}\par
+  \lpar{6}{6}{1-4}}
+\lipsum[1]
+
+\lipsum[2] Mark\fn{\lipsum[4][1-2]}
+\lipsum[3] Mark\fn{\lipsum[5][1-2]} \lipsum[4-7]
+
+\lipsum[8-11]
+
+\ltnote{\leavevmode\label{b1}\lipsum*[5]\lipsum*[6]\lipsum*[8]\label{b2}}
+\lipsum[12] Mark\fn{\lipsum[4][1-2]}
+\lipsum[13] Mark\fn{\lipsum[5][1-2]} \lipsum[14-20]
+\end{document}
