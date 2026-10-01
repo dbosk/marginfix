@@ -4,7 +4,7 @@
 #
 # Usage (from the repository root, after make marginfix.sty):
 #   test/offmode.sh [TEST.tex ...]
-tests=${*:-test/priority.tex test/fill.tex}
+tests=${*:-test/priority.tex test/fill.tex test/split.tex}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 export SOURCE_DATE_EPOCH=0 FORCE_SOURCE_DATE=1

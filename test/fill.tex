@@ -2,8 +2,9 @@
 % in what is left of the margin, followed by short footnotes that do.  In
 % mode warn, as in marginfix v1.4, LT2 takes the footnotes after it to the
 % next page, and the warning says that it did; in mode defer LT2 moves alone
-% and the footnotes fill the margin after LT1.  See prioritycheck.tex for
-% how the modes are chosen and checked.  Needs three runs.
+% and the footnotes fill the margin after LT1; in mode split LT2 is split
+% and the footnotes follow its first part.  See prioritycheck.tex for how
+% the modes are chosen and checked.  Needs three runs.
 \documentclass[a4paper]{memoir}
 \setlrmarginsandblock{2cm}{6cm}{*}
 \setmarginnotes{1em}{4.5cm}{1em}
