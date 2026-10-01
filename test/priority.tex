@@ -1,0 +1,31 @@
+% Test for deferrable notes: long commentary notes called out high on the
+% page fill the margin, and a footnote called out lower down (FN1) would
+% move to the next page.  In mode warn it does, and marginfix warns, naming
+% the footnote and the commentary notes by file and line; in mode defer
+% LT2 moves to the next page, so that FN1 stays beside its mark.  See
+% prioritycheck.tex for how the modes are chosen and checked.  Needs three
+% runs.
+\documentclass[a4paper]{memoir}
+\setlrmarginsandblock{2cm}{6cm}{*}
+\setmarginnotes{1em}{4.5cm}{1em}
+\checkandfixthelayout
+\usepackage{marginfix}
+\footnotesinmargin
+\usepackage{lipsum}
+\input{test/prioritycheck}
+\expectmovedtrue
+\begin{document}
+\chapter{Test}
+\ltnote{\lipsum*[1][1-12]} \lipsum[1]
+\ltnote{\lipsum*[2][1-8]\par\lipsum*[1][1-12]\par\lipsum*[3][1-9]}
+\lipsum[2]
+
+\lipsum[3] Mark\fn{\lipsum[4][1-2]}
+
+\lipsum[5] Mark\fn{\lipsum[4][1-3]}
+\lipsum[6-7]
+\ltnote{\lipsum*[1][1-6]} \lipsum[8]
+Mark\fn{\lipsum[4][1-2]} \lipsum[9-12]
+
+\lipsum[13] \ltnote{\lipsum*[1][1-3]} \lipsum[14-20]
+\end{document}
