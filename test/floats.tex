@@ -1,49 +1,70 @@
 % Test of notes beside bottom floats (\marginnotebesidefloats).
 %
-% Page 1 has a table at the bottom and more footnotes than fit in the
-% margin beside the text.  \floatcase chooses the table:
+% A page with a table at the bottom and more footnotes than fit in the
+% margin beside the text.  \floatcase chooses the page:
 %
-%   plain   a plain table with an ordinary caption;
-%   ragged  the same with \raggedbottom;
-%   wide    the table in adjustwidth with a negative right margin, so its
-%           box is wider than the column;
-%   side    the table with memoir's side caption;
-%   marker  the plain table with \marginnotereservefloat.
+%   plain     a plain table with an ordinary caption and a \label;
+%   ragged    the same with \raggedbottom;
+%   wide      the table in adjustwidth with a negative right margin;
+%   overfull  a table wider than the text, an overfull line;
+%   left      the table in adjustwidth with a negative left margin, with
+%             the notes in the left margin (\reversemarginpar);
+%   verso     the table in adjustwidth* on a verso page, sticking out on
+%             the outer (left) side, where the notes are;
+%   side      the table with memoir's side caption;
+%   marker    the plain table with \marginnotereservefloat;
+%   two       two plain tables at the bottom;
+%   topbot    a plain table at the top and one at the bottom;
+%   block     the plain table, and the margin blocked across the end of
+%             its page;
+%   split     the plain table, with deferrable notes in mode split;
+%   deferred  the plain table, and right after it a table with
+%             \marginnotereservefloat, which (with one bottom float per
+%             page) lands at the bottom of the next page.
 %
 % \besidemode is the mode, reserve (default) or use.  The footnotes have
 % labels at their marks and in their texts, and at the end of the next run
 % we check from the .aux file: with reserve, the plain table must still
-% push a footnote to the next page (the problem); with use, the plain and
-% ragged tables must not.  That the other tables keep the margin beside
-% them empty is checked by test/floatsmode.sh, which compares their PDFs
-% in the two modes.  Needs three runs.
-\documentclass[a4paper]{memoir}
-\setlrmarginsandblock{2cm}{6cm}{*}
+% push a footnote to the next page (the problem); with use, the plain,
+% ragged and split pages must not.  In mode use we also check, on every
+% page with bottom floats that keep the margin free, that the room added
+% beside them is exactly what LaTeX took from the text for them
+% (\@colht-\@colroom, less what the top floats took).  In case deferred
+% the marked table must land on a later page than its callout, and keep
+% the margin beside it empty.  That the tables
+% that extend into the margin keep the margin beside them empty is checked
+% by test/floatsmode.sh, which compares the PDFs of the two modes.
+% Needs three runs.
+\ifdefined\floatcase\else\def\floatcase{plain}\fi
+\ifdefined\besidemode\else\def\besidemode{reserve}\fi
+\catcode`\@=11
+\def\IfCase#1{\def\reserved@a{#1}\ifx\floatcase\reserved@a
+  \expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi}
+\IfCase{verso}{\documentclass[a4paper]{memoir}}{%
+  \documentclass[a4paper,oneside]{memoir}}
+\IfCase{left}{\setlrmarginsandblock{6cm}{2cm}{*}}{%
+  \setlrmarginsandblock{2cm}{6cm}{*}}
 \setmarginnotes{1em}{4.5cm}{1em}
 \setsidecaps{1em}{4.5cm}
 \checkandfixthelayout
 \usepackage{marginfix}
+\IfCase{left}{\reversemarginpar}{}
 \footnotesinmargin
 \usepackage{lipsum}
-\ifdefined\floatcase\else\def\floatcase{plain}\fi
-\ifdefined\besidemode\else\def\besidemode{reserve}\fi
 \providecommand\marginnotebesidefloats[1]{}
 \providecommand\marginnotereservefloat{}
+\providecommand\marginnotepriority[1]{}
+\providecommand\marginnotedeferrable{}
 \marginnotebesidefloats{\besidemode}
-\makeatletter
-% \IfCase{case}{if}{else}
-\newcommand\IfCase[3]{%
-  \def\reserved@a{#1}%
-  \ifx\floatcase\reserved@a
-    \expandafter\@firstoftwo
-  \else
-    \expandafter\@secondoftwo
-  \fi{#2}{#3}}
+\IfCase{split}{\marginnotepriority{split}}{}
 \IfCase{ragged}{\raggedbottom}{}
+\IfCase{deferred}{\setcounter{bottomnumber}{1}}{}
 \newcounter{fnmark}
 \newcommand\fn[1]{%
   \stepcounter{fnmark}\label{mk\thefnmark}%
   \footnote{\label{fn\thefnmark}FN\thefnmark: #1}}
+\newcommand\ltnote[1]{%
+  \marginpar{\footnotesize\marginnotedeferrable LT: #1}}
 \def\ft@page#1{%
   \expandafter\ifx\csname r@#1\endcsname\relax -1\else
     \expandafter\expandafter\expandafter\ft@second
@@ -51,6 +72,40 @@
 \def\ft@second#1#2#3\@nil{#2}
 \newcount\ft@i
 \newcount\ft@off
+\newcount\ft@wide
+% Check the room beside the bottom floats against LaTeX's own account.
+\AtBeginDocument{%
+  \ifdefined\MFX@bottomroom
+    \let\ft@bottomroom\MFX@bottomroom
+    \def\MFX@bottomroom{\ft@bottomroom\ft@checkroom}%
+  \fi}
+\def\ft@checkroom{%
+  \if@tempswa
+    \global\advance\ft@wide\@ne
+    \typeout{floatstest: page \thepage: a bottom float is wide}%
+  \else
+    \begingroup
+      \@tempdima\dimexpr\@colht-\@colroom\relax
+      \ifx\@toplist\@empty\else
+        \@tempdimb\textfloatsep
+        \advance\@tempdimb-\floatsep
+        \def\@elt##1{%
+          \advance\@tempdimb\dimexpr\ht##1+\dp##1+\floatsep\relax}%
+        \@toplist
+        \advance\@tempdima-\@tempdimb
+      \fi
+      \typeout{floatstest: page \thepage: room \the\dimen@,
+        expected \the\@tempdima}%
+      \ifdim\dimexpr\dimen@-\@tempdima\relax>.01pt
+        \PackageError{floatstest}{Room beside bottom floats is
+          \the\dimen@, expected \the\@tempdima}\@ehc
+      \fi
+      \ifdim\dimexpr\@tempdima-\dimen@\relax>.01pt
+        \PackageError{floatstest}{Room beside bottom floats is
+          \the\dimen@, expected \the\@tempdima}\@ehc
+      \fi
+    \endgroup
+  \fi}
 \AtEndDocument{%
   \ifnum\ft@page{fn\the\c@fnmark}<\z@
     \typeout{floatstest: labels undefined, rerun to check}%
@@ -68,6 +123,7 @@
       \@tempswafalse
       \IfCase{plain}{\@tempswatrue}{}%
       \IfCase{ragged}{\@tempswatrue}{}%
+      \IfCase{split}{\@tempswatrue}{}%
       \if@tempswa\ifnum\ft@off>\z@
         \PackageError{floatstest}{Footnotes moved beside a narrow bottom
           float in mode use}\@ehc
@@ -78,34 +134,83 @@
           the test no longer reproduces the problem}\@ehc
       \fi}{}%
     \fi
+    \IfCase{deferred}{%
+      \ifnum\ft@page{tabm}>\ft@page{tabcall}\else
+        \PackageError{floatstest}{The marked table was not deferred}\@ehc
+      \fi
+      \ifx\besidemode\reserved@a\ifnum\ft@wide=\z@
+        \PackageError{floatstest}{The deferred marked table did not keep
+          the margin beside it empty}\@ehc
+      \fi\fi}{}%
   \fi}
-\newcommand\thetable@rows{%
+\newcommand\rows{%
   \hline A & B & C\\ \hline
   1 & 2 & 3\\ 4 & 5 & 6\\ 7 & 8 & 9\\ 1 & 2 & 3\\ 4 & 5 & 6\\ 7 & 8 & 9\\
   1 & 2 & 3\\ 4 & 5 & 6\\ 7 & 8 & 9\\ 1 & 2 & 3\\ 4 & 5 & 6\\ 7 & 8 & 9\\
   \hline}
+\newcommand\plaintable{\centering\begin{tabular}{lll}\rows\end{tabular}}
 \newcommand\testtable{%
   \begin{table}[b]
     \IfCase{marker}{\marginnotereservefloat}{}%
     \IfCase{side}{%
-      \begin{sidecaption}{A table with a side caption.}
-        \centering\begin{tabular}{lll}\thetable@rows\end{tabular}
+      \begin{sidecaption}{A table with a side caption.}[tab]
+        \plaintable
       \end{sidecaption}}{%
     \IfCase{wide}{%
-      \begin{adjustwidth}{0pt}{-4cm}
-        \centering\begin{tabular}{lll}\thetable@rows\end{tabular}
-      \end{adjustwidth}
-      \caption{A table wider than the column.}}{%
-      \centering\begin{tabular}{lll}\thetable@rows\end{tabular}
-      \caption{A plain table at the bottom.}}}%
+      \begin{adjustwidth}{0pt}{-4cm}\plaintable\end{adjustwidth}
+      \caption{A table wider than the column.}\label{tab}}{%
+    \IfCase{left}{%
+      \begin{adjustwidth}{-4cm}{0pt}\plaintable\end{adjustwidth}
+      \caption{A table sticking out on the left.}\label{tab}}{%
+    \IfCase{verso}{%
+      \begin{adjustwidth*}{0pt}{-4cm}\plaintable\end{adjustwidth*}
+      \caption{A table sticking out on the outer side.}\label{tab}}{%
+    \IfCase{overfull}{%
+      \centering\begin{tabular}{p{7cm}p{7cm}l}\rows\end{tabular}
+      \caption{A table wider than the text.}\label{tab}}{%
+      \plaintable
+      \caption{A plain table at the bottom.}\label{tab}}}}}}%
+  \end{table}%
+  \IfCase{two}{%
+    \begin{table}[b]
+      \centering\begin{tabular}{lll}\hline X & Y & Z\\ \hline\end{tabular}
+      \caption{A second table at the bottom.}
+    \end{table}}{}%
+  \IfCase{topbot}{%
+    \begin{table}[t]
+      \centering\begin{tabular}{lll}\hline X & Y & Z\\ 1 & 2 & 3\\
+        \hline\end{tabular}
+      \caption{A table at the top.}
+    \end{table}}{}}
+\newcommand\deferredtable{%
+  \label{tabcall}%
+  \begin{table}[b]
+    \marginnotereservefloat
+    \centering\begin{tabular}{lll}\rows\end{tabular}
+    \caption{A marked table.}\label{tabm}
   \end{table}}
+\newcommand\notes{%
+  \lipsum[3][1-4]\fn{\lipsum[4][1-4]} \lipsum[3][5-8]\fn{\lipsum[5][1-4]}
+  \lipsum[6][1-4]\fn{\lipsum[7][1-4]} \lipsum[6][5-9]\fn{\lipsum[8][1-4]}
+  \fn{\lipsum[9][1-3]} \lipsum[10][1-3]\fn{\lipsum[11][1-5]}
+  \lipsum[12][1-3]\fn{\lipsum[13][1-5]}
+  \lipsum[14][1-3]\fn{\lipsum[15][1-3]}}
 \makeatother
 \begin{document}
-\lipsum[1-2]
-\testtable
-\lipsum[3][1-4]\fn{\lipsum[4][1-4]} \lipsum[3][5-8]\fn{\lipsum[5][1-4]}
-\lipsum[6][1-4]\fn{\lipsum[7][1-4]} \lipsum[6][5-9]\fn{\lipsum[8][1-4]}
-\fn{\lipsum[9][1-3]} \lipsum[10][1-3]\fn{\lipsum[11][1-5]}
-\lipsum[12][1-3]\fn{\lipsum[13][1-5]} \lipsum[14][1-3]\fn{\lipsum[15][1-3]}
-\lipsum[18-24]
+\IfCase{verso}{\null\newpage}{}
+\IfCase{deferred}{%
+  \lipsum[1-2]\testtable\deferredtable\notes\lipsum[18-30]\notes
+  \lipsum[31-40]}{%
+\IfCase{block}{%
+  \lipsum[1]\testtable
+  \lipsum[3][1-4]\fn{\lipsum[4][1-4]} \lipsum[3][5-8]\fn{\lipsum[5][1-4]}
+  \blockmargin\begin{adjustwidth}{0pt}{-4cm}\lipsum[7-12]\end{adjustwidth}%
+  \unblockmargin
+  \fn{\lipsum[9][1-3]} \lipsum[10][1-3]\fn{\lipsum[11][1-5]}
+  \lipsum[18-24]}{%
+\IfCase{split}{%
+  \lipsum[1]\testtable
+  \ltnote{\lipsum*[2][1-6]\par\lipsum*[3][1-5]}\notes
+  \ltnote{\lipsum*[7][1-4]}\lipsum[18-24]}{%
+  \lipsum[1-2]\testtable\notes\lipsum[18-24]}}}
 \end{document}
