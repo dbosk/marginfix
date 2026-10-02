@@ -15,7 +15,7 @@
            [2026/09/22 v1.4 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3074}
+\CheckSum{3179}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -349,12 +349,17 @@
 % page built.
 %
 % \DescribeMacro{\marginnotereservefloat}
-% marginfix looks at the lines of a float, but \TeX{} can't see ink outside
-% the boxes: a \cs{rlap} or \cs{llap}, a \cs{makebox} that lets its content
-% stick out, negative space that pulls text out of its line, a TikZ overlay,
-% or a picture drawn beyond its bounding box all go unnoticed.  Write
-% \cs{marginnotereservefloat} in such a float to keep the margin beside it
-% empty.  It applies to the float it is in, and only does anything with
+% marginfix looks at the lines of a float, and at boxes at the end of a
+% line (a minipage, \cs{parbox} or table placed with \texttt{t} or
+% \texttt{b}), but not further.  It doesn't look into a minipage, \cs{parbox}
+% or table centred on its line (the default), the inside of an \cs{fbox}, a
+% formula, or a box followed by text on its line.  And \TeX{} can't see ink
+% outside the boxes: a \cs{rlap} or \cs{llap}, a \cs{makebox} that lets
+% its content stick out, negative space that pulls text out of its line, a
+% TikZ overlay, or a picture drawn beyond its bounding box.  A float in
+% which any of these sticks out into the margin goes unnoticed; write
+% \cs{marginnotereservefloat} in it to keep the margin beside it empty.
+% It applies to the float it is in, and only does anything with
 % \cs{marginnotebesidefloats}\texttt{\{use\}}; outside a float it warns.
 % (Used where \cs{@captype} is defined but there is no float, such as a
 % minipage that fakes one for \cs{caption}, it, or a side caption, marks
@@ -1336,15 +1341,26 @@
 % we put a \cs{penalty}|0| before them, as the float is built: before every
 % \cs{protected@write} in vertical mode inside a float (that is how
 % \cs{label}, \cs{addcontentsline} and \cs{index} write), and after the
-% inner box of the float, in \cs{@endfloatbox}.  A penalty is a place to
-% break, but changes no size (unlike glue or a kern, which would end the
-% depth of the box before it), and a float is never broken, so the float
-% looks the same.  Anything we still can't take apart, and that has a size
-% (a rule, or a box right before some other \cs{special}), makes the float
-% wide, to be safe; and so does a list nested too deep.  If another package
-% has changed \cs{@endfloatbox}, we leave it alone, and with colour every
-% float is then wide.  The cost is one copy of each bottom float per page,
-% and only in the mode \texttt{use}.
+% inner box of the float, in \cs{@endfloatbox}.  Inside a float means that
+% \cs{@captype} is defined and \cs{@floatpenalty} is negative, as it is
+% throughout the body of a float, so that a \cs{captionof} on the page, a
+% figure in \pkg{beamer} or a table that breaks across pages get no
+% penalties.  A penalty is a place to break, but changes no size (unlike
+% glue or a kern, which would end the depth of the box before it), and a
+% float is never broken, so the float looks the same.  Anything we still
+% can't take apart, and that has a size (a rule, or a box right before
+% some other \cs{special}), makes the float wide, to be safe; and so does
+% a list nested too deep.  If another package has changed
+% \cs{@endfloatbox}, we leave it alone, and with colour every float is
+% then wide; likewise if a package changes \cs{protected@write} in the
+% document, or \cs{nofiles} turns it into a bare \cs{write}.  So when a
+% float is wide for such a reason rather than for a wide line, we say so
+% in the log (\cs{PackageInfo}), which helps to find out why notes don't
+% go beside it.  The cost is one copy of each bottom float per page, and
+% only in the mode \texttt{use}.
+%
+% The lines of a float may hold boxes too, and we look at those at the end
+% of a line, from the right (\cs{MFX@fw@hlist}); see below for which.
 %
 % What \TeX{} can't see at all is ink outside the boxes: a \cs{rlap} or
 % \cs{llap}, a \cs{makebox} that lets its content stick out, negative
@@ -1366,6 +1382,7 @@
 % floats in \cs{@botlist}, or zero if one of them extends into the margin.
 %    \begin{macrocode}
 \def\MFX@beside@reserve{}
+\def\MFX@fw@line{line}
 \def\MFX@beside@use{%
   \ifx\@botlist\@empty\else
     \MFX@bottomroom
@@ -1382,7 +1399,16 @@
     \expandafter\ifx\csname mfx@wide@\number##1\endcsname\relax
       \if@tempswa\else
         \MFX@floatwide##1%
-        \ifmfx@fw@wide\@tempswatrue\fi
+        \ifmfx@fw@wide
+          \@tempswatrue
+          \ifx\mfx@fw@why\MFX@fw@line\else
+            \PackageInfo{marginfix}{No notes beside the bottom floats of
+              page \thepage:\MessageBreak one of them
+              holds \mfx@fw@why.\MessageBreak If it doesn't, a package may
+              have changed\MessageBreak \string\protected@write\space or
+              \string\@endfloatbox\@gobble}%
+          \fi
+        \fi
       \fi
     \else
       \@tempswatrue
@@ -1423,6 +1449,7 @@
     \splitmaxdepth\maxdimen
     \Mfx@fw@depth\z@
     \Mfx@fw@pieces\z@
+    \gdef\mfx@fw@why{}%
     \setbox\Mfx@fw@item\copy#1%
     \MFX@fw@vbox
   \endgroup
@@ -1431,7 +1458,7 @@
   \begingroup
     \advance\Mfx@fw@depth\@ne
     \ifnum\Mfx@fw@depth>\MFX@fw@maxdepth\relax
-      \global\mfx@fw@widetrue
+      \MFX@fw@setwide{boxes nested too deep}%
     \else
       \setbox\Mfx@fw@rest\vbox{\unvbox\Mfx@fw@item}%
       \MFX@fw@peel
@@ -1449,15 +1476,15 @@
     \ifmfx@fw@wide\else
       \global\advance\Mfx@fw@pieces\@ne
       \ifnum\Mfx@fw@pieces>10000
-        \global\mfx@fw@widetrue
+        \MFX@fw@setwide{a list too long to walk}%
       \else
         \setbox\Mfx@fw@piece\vsplit\Mfx@fw@rest to\z@
         \setbox\Mfx@fw@piece\vbox{\unvbox\Mfx@fw@piece\MFX@fw@items}%
         \ifdim\dimexpr\ht\Mfx@fw@piece+\dp\Mfx@fw@piece\relax>\z@
-          \global\mfx@fw@widetrue
+          \MFX@fw@setwide{an item it can't take apart}%
         \fi
         \ifdim\wd\Mfx@fw@piece>\z@
-          \global\mfx@fw@widetrue
+          \MFX@fw@setwide{an item it can't take apart}%
         \fi
         \let\mfx@fw@next\MFX@fw@peel
       \fi
@@ -1495,20 +1522,70 @@
 %    \begin{macrocode}
 \def\MFX@fw@hbox{%
   \ifdim\wd\Mfx@fw@item>\dimexpr\columnwidth+\p@\relax
-    \global\mfx@fw@widetrue
+    \MFX@fw@setwide{line}%
   \else
     \setbox\Mfx@fw@item
       \hbox to\dimexpr\wd\Mfx@fw@item+\p@\relax{\unhbox\Mfx@fw@item}%
     \ifnum\badness>\@M
-      \global\mfx@fw@widetrue
+      \MFX@fw@setwide{line}%
+    \else
+      \MFX@fw@hlist
     \fi
   \fi
 }
 \def\MFX@fw@vbox{%
   \ifdim\wd\Mfx@fw@item>\dimexpr\columnwidth+\p@\relax
-    \global\mfx@fw@widetrue
+    \MFX@fw@setwide{line}%
   \else
     \MFX@fw@list
+  \fi
+}
+%    \end{macrocode}
+% Within a line we look at the boxes at its end: we take the line apart
+% from the right, glue, kerns, penalties and boxes, and look at each box
+% as above, until we meet anything else, such as a character, a rule or a
+% formula.  That is not a reason to call the float wide, since every line
+% of text ends so; we simply stop.  This reaches a minipage, a
+% \cs{parbox} or a table with the position \texttt{t} or \texttt{b} that
+% ends its line, which is how they usually stand in a float; but not one
+% centred on its line (the default), since \LaTeX{} puts that in a formula
+% (\cs{vcenter}), nor anything followed by text, nor the inside of an
+% \cs{fbox}, which ends with a rule.
+%    \begin{macrocode}
+\def\MFX@fw@hlist{%
+  \begingroup
+    \advance\Mfx@fw@depth\@ne
+    \ifnum\Mfx@fw@depth>\MFX@fw@maxdepth\relax
+      \MFX@fw@setwide{boxes nested too deep}%
+    \else
+      \setbox\Mfx@fw@item\hbox{\unhbox\Mfx@fw@item\MFX@fw@hitems}%
+    \fi
+  \endgroup
+}
+\def\MFX@fw@hitems{%
+  \let\mfx@fw@next\relax
+  \ifcase\numexpr\lastnodetype+1\relax
+  \or                                                      % char
+  \or\setbox\Mfx@fw@item\lastbox\MFX@fw@hbox
+     \let\mfx@fw@next\MFX@fw@hitems                        % hlist
+  \or\setbox\Mfx@fw@item\lastbox\MFX@fw@vbox
+     \let\mfx@fw@next\MFX@fw@hitems                        % vlist
+  \or\or\or\or\or\or\or\or                                % rule ... math
+  \or\unskip\let\mfx@fw@next\MFX@fw@hitems                 % glue
+  \or\unkern\let\mfx@fw@next\MFX@fw@hitems                 % kern
+  \or\unpenalty\let\mfx@fw@next\MFX@fw@hitems              % penalty
+  \fi
+  \ifmfx@fw@wide\let\mfx@fw@next\relax\fi
+  \mfx@fw@next
+}
+%    \end{macrocode}
+% \cs{MFX@fw@setwide}\marg{reason} calls the float wide, keeping the first
+% reason in \cs{mfx@fw@why}, for the message in \cs{MFX@bottomroom}.
+%    \begin{macrocode}
+\def\MFX@fw@setwide#1{%
+  \ifmfx@fw@wide\else
+    \global\mfx@fw@widetrue
+    \gdef\mfx@fw@why{#1}%
   \fi
 }
 %    \end{macrocode}
@@ -1529,7 +1606,9 @@
 \def\MFX@fw@writebreak{%
   \ifvmode
     \ifx\@captype\@undefined\else
-      \MFX@fw@break
+      \ifnum\@floatpenalty<\z@
+        \MFX@fw@break
+      \fi
     \fi
   \fi
 }
