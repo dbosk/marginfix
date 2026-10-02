@@ -13,9 +13,13 @@ marginfix.pdf:marginfix.dtx
 .PHONY: test clean
 
 SPLITRULES_JOBS=splitrules-within splitrules-beyond splitrules-write
+FLOATS_CASES=plain ragged wide overfull left verso side marker two topbot block split deferred
+FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
+ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
 test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf anchorpage.pdf priority-test \
-	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test
+	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
+	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
@@ -103,6 +107,32 @@ modechange.pdf modechange-warn.pdf: marginfix.sty test/modechange.tex \
 .PHONY: off-test
 off-test:marginfix.sty
 	test/offmode.sh
+
+# Notes beside bottom floats (test/floats.tex): each kind of table in each
+# mode, with the checks of the test, and then test/floatsmode.sh, which
+# checks that the tables that extend into the margin keep it empty.
+$(FLOATS_JOBS:=.pdf): %.pdf: marginfix.sty test/floats.tex
+	t=$*; t=$${t#floats-}; for i in 1 2 3; do \
+	  pdflatex -interaction=nonstopmode -jobname=$* \
+	    "\\def\\floatcase{$${t%-*}}\\def\\besidemode{$${t##*-}}\\input{test/floats}" \
+	    >/dev/null || { grep -A3 '^!' $*.log; exit 1; }; done
+	@grep 'floatstest (' $*.log
+
+.PHONY: floats-test
+floats-test:marginfix.sty
+	test/floatsmode.sh
+
+# The same in the article class (footnotes at the foot), and in beamer
+# (which only has to load it).
+$(ARTICLE_FLOATS_JOBS:=.pdf): %.pdf: marginfix.sty test/floats-article.tex
+	t=$*; for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode -jobname=$* \
+	    "\\def\\besidemode{$${t##*-}}\\input{test/floats-article}" \
+	    >/dev/null || { grep -A3 '^!' $*.log; exit 1; }; done
+
+beamer-floats.pdf: marginfix.sty test/floats-beamer.tex
+	pdflatex -interaction=nonstopmode -jobname=beamer-floats \
+	  test/floats-beamer.tex >/dev/null || { grep -A3 "^!" beamer-floats.log; exit 1; }
 
 # The default mode must typeset every test exactly as the version before
 # deferrable notes did.

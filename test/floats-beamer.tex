@@ -1,0 +1,19 @@
+% Test that marginfix, with notes beside bottom floats, loads and runs in
+% beamer, where figures are not floats: a figure with a caption, a side
+% caption environment as some packages define one, and
+% \marginnotereservefloat.  It only has to typeset without errors.
+\documentclass{beamer}
+\usepackage{marginfix}
+\providecommand\marginnotebesidefloats[1]{}
+\providecommand\marginnotereservefloat{}
+\marginnotebesidefloats{use}
+\newenvironment{sidecaption}[1]{\def\sidecaptext{#1}}{\caption{\sidecaptext}}
+\begin{document}
+\begin{frame}{A frame}
+  \begin{figure}
+    \marginnotereservefloat
+    \begin{sidecaption}{A side caption.}\rule{1cm}{1cm}\end{sidecaption}
+  \end{figure}
+  \begin{figure}\rule{1cm}{1cm}\caption{A caption.}\end{figure}
+\end{frame}
+\end{document}
