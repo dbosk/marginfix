@@ -15,7 +15,7 @@
            [2026/09/27 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{2666}
+\CheckSum{2790}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -89,6 +89,11 @@
 %        to keep the ordinary notes with their callouts; split notes
 %        between paragraphs where possible (\cs{marginsplitslack}), with
 %        the cues \cs{marginnotecontinued} and \cs{marginnotecontinues}.}
+% \changes{v1.5}{2026/10/02}
+%       {(Daniel Bosk) Add \cs{marginnotebesidefloats}: optionally set
+%        notes beside bottom floats that stay in the text block, unless
+%        a float is wider than the column, has a side caption, or says
+%        \cs{marginnotereservefloat}.}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -313,6 +318,48 @@
 % \cs{setlength}, or anywhere with |\global\marginsplitslack=|\meta{length};
 % a \cs{setlength} in a group is forgotten at its end and may or may not be
 % in force when the page is built.
+%
+% \section{Notes beside floats}
+% \label{sec:floats}
+% marginfix sets notes only in the margin beside the text of a page, not
+% beside the floats at its top or bottom, since a float may extend into the
+% margin (a side caption, or a figure wider than the text).  For a plain
+% table at the bottom of a page that leaves a stretch of margin empty
+% while notes called out on the page move on to the next.
+%
+% \DescribeMacro{\marginnotebesidefloats}
+% \cs{marginnotebesidefloats}\marg{mode} decides what happens beside the
+% floats at the bottom of a page.  With \texttt{reserve}, the default, the
+% margin beside them stays empty, as it always has.  With \texttt{use}, the
+% notes may continue beside them, unless one of them extends into the
+% margin; then the margin beside all the bottom floats of that page stays
+% empty.  A float counts as extending into the margin if
+% \begin{itemize}
+% \item its box is wider than the column (by more than 1\,pt), as with
+%   \pkg{memoir}'s \texttt{adjustwidth} with a negative margin;
+% \item it uses one of \pkg{memoir}'s side captions or legends
+%   (\texttt{sidecaption}, \texttt{sidecontcaption}, \texttt{sidelegend},
+%   \texttt{sidenamedlegend}); or
+% \item it says \cs{marginnotereservefloat}, see below.
+% \end{itemize}
+% Floats at the top of a page always keep the margin beside them empty.
+% Like the other settings, the mode is global, and used from the next
+% page built.
+%
+% \DescribeMacro{\marginnotereservefloat}
+% \TeX{} can't see what sticks out of a box, so anything in a float that
+% reaches into the margin without making the float wider goes unnoticed: a
+% \cs{rlap}, an overfull \cs{makebox}, a drawing that overlaps its bounding
+% box.  Write \cs{marginnotereservefloat} in such a float to keep the
+% margin beside it empty.  It applies to the float it is in, and only does
+% anything with \cs{marginnotebesidefloats}\texttt{\{use\}}; outside a
+% float it warns.
+%
+% With \cs{raggedbottom} the bottom floats sit right below the text rather
+% than at the bottom of the page.  The notes may then also go beside the
+% empty space below the floats, which is harmless; and as before, notes may
+% already sit beside a bottom float that came up beside the margin of the
+% text, whatever the mode.
 %
 % \section{Interaction with other packages}
 % \subsection{memoir}
@@ -1189,9 +1236,13 @@
 % \cs{mfx@marginstart} will hold a position, rather than \cs{relax}).
 % After this, \cs{Mfx@marginheight} is no longer necessary, so we reuse
 % it for keeping track of available space in individual margin pieces.
+% With \cs{marginnotebesidefloats}\texttt{\{use\}}, the last piece also
+% reaches down beside the bottom floats, if none of them extends into the
+% margin (section~\ref{sec:floats@impl}).
 %    \begin{macrocode}
 \def\MFX@buildmargin{%
   \advance\Mfx@marginheight\@colroom
+  \csname MFX@beside@\mfx@besidefloats\endcsname
   \ifx\mfx@marginstart\relax
   \else
     \MFX@cons\mfx@marginpieces{%
@@ -1228,6 +1279,105 @@
     \MFX@buildmargin@pieces
   \fi
 }
+%    \end{macrocode}
+% \end{macros}
+%
+% \subsection{Room beside bottom floats}
+% \label{sec:floats@impl}
+% The margin box hangs from the top of the text, before \cs{@combinefloats}
+% adds the floats, and its last piece ends at \cs{@colroom}, the height of
+% the text.  The bottom floats come after that: \cs{@cflb} appends
+% \cs{textfloatsep}, then each float followed by \cs{floatsep}, and takes
+% the last \cs{floatsep} back.  So to let the notes continue beside them we
+% need only extend the last piece by that much, which is what
+% \cs{MFX@beside@use} does; the later passes then place notes there like
+% anywhere else.  If the margin is blocked at the end of the page
+% (\cs{blockmargin} without \cs{unblockmargin}) there is no last piece to
+% extend, and nothing changes.
+%
+% We only extend if no bottom float extends into the margin, and then
+% beside all of them; a float that does reserves the whole area, as before.
+% Giving each float its own piece would let notes go beside the narrow
+% ones, but bottom floats are seldom more than one or two, and the simpler
+% rule leaves less to go wrong.  Whether a float extends into the margin we
+% can only guess.  A box wider than the column does, but \TeX{} can't see
+% what sticks out of a box, and \pkg{memoir}'s side captions, for one, put
+% the caption beside a box of the column's width.  So we also mark the
+% floats that use a side caption, through the environment hooks of the
+% \LaTeX{} kernel, and let the author mark the rest.  We don't try to tell
+% which margin a side caption is in: reserving too much is only a waste.
+%
+% With \cs{raggedbottom} the text is not stretched to \cs{@colroom}, and the
+% bottom floats follow the text directly.  The extended piece then also
+% covers the empty space below them, which does no harm, and a narrow float
+% may come up beside the margin of the text, which was already so.
+%
+% \begin{macros}{\MFX@beside@reserve,\MFX@beside@use,\MFX@bottomroom}
+% The mode \texttt{reserve} does nothing, so the default layout is as
+% before.  \cs{MFX@bottomroom} leaves in \cs{dimen@} the room beside the
+% floats in \cs{@botlist}, or zero if one of them extends into the margin.
+%    \begin{macrocode}
+\def\MFX@beside@reserve{}
+\def\MFX@beside@use{%
+  \ifx\@botlist\@empty\else
+    \MFX@bottomroom
+    \advance\Mfx@marginheight\dimen@
+  \fi
+}
+\def\MFX@bottomroom{%
+  \dimen@\z@
+  \count@\z@
+  \@tempswafalse
+  \def\@elt##1{%
+    \advance\count@\@ne
+    \advance\dimen@\dimexpr\ht##1+\dp##1\relax
+    \ifdim\wd##1>\dimexpr\columnwidth+\p@\relax
+      \@tempswatrue
+    \fi
+    \expandafter\ifx\csname mfx@wide@\number##1\endcsname\relax\else
+      \@tempswatrue
+    \fi}%
+  \@botlist
+  \let\@elt\relax
+  \advance\dimen@\textfloatsep
+  \advance\dimen@\numexpr\count@-\@ne\relax\floatsep
+  \if@tempswa
+    \dimen@\z@
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\marginnotereservefloat,\MFX@reservefloat}
+% A float is marked in |\mfx@wide@|\meta{number}, named after its box
+% register, as deferrable notes are.  Inside a float, \cs{@currbox} is that
+% register, and \cs{@captype} is defined.  The mark is cleared when a float
+% starts, in \cs{@floatboxreset}, since registers are reused.  The side
+% captions mark their float silently, since they may also be used outside
+% a float.
+%    \begin{macrocode}
+\g@addto@macro\@floatboxreset{%
+  \expandafter\global\expandafter\let
+    \csname mfx@wide@\number\@currbox\endcsname\relax}
+\def\MFX@reservefloat{%
+  \ifx\@captype\@undefined\else
+    \expandafter\gdef\csname mfx@wide@\number\@currbox\endcsname{}%
+  \fi
+}
+\def\marginnotereservefloat{%
+  \ifx\@captype\@undefined
+    \PackageWarning{marginfix}{\string\marginnotereservefloat\space
+      outside a float ignored}%
+  \else
+    \MFX@reservefloat
+  \fi
+}
+\ifdefined\AddToHook
+  \AddToHook{env/sidecaption/begin}{\MFX@reservefloat}
+  \AddToHook{env/sidecontcaption/begin}{\MFX@reservefloat}
+  \AddToHook{env/sidelegend/begin}{\MFX@reservefloat}
+  \AddToHook{env/sidenamedlegend/begin}{\MFX@reservefloat}
+\fi
 %    \end{macrocode}
 % \end{macros}
 %
@@ -2894,6 +3044,20 @@
 \let\mfx@contsuffix\@empty
 \def\marginnotecontinued#1{\gdef\mfx@contprefix{#1}}
 \def\marginnotecontinues#1{\gdef\mfx@contsuffix{#1}}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\marginnotebesidefloats,\mfx@besidefloats}
+% The mode is kept by name, like that of \cs{marginnotepriority}, and
+% \cs{MFX@buildmargin} calls |\MFX@beside@|\meta{mode}.
+%    \begin{macrocode}
+\def\mfx@besidefloats{reserve}
+\def\marginnotebesidefloats#1{%
+  \@ifundefined{MFX@beside@#1}%
+    {\PackageError{marginfix}{Unknown mode `#1' beside floats}%
+       {Use reserve or use.}}%
+    {\xdef\mfx@besidefloats{#1}}%
+}
 %    \end{macrocode}
 % \end{macros}
 %
