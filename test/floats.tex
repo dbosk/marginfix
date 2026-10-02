@@ -1,0 +1,111 @@
+% Test of notes beside bottom floats (\marginnotebesidefloats).
+%
+% Page 1 has a table at the bottom and more footnotes than fit in the
+% margin beside the text.  \floatcase chooses the table:
+%
+%   plain   a plain table with an ordinary caption;
+%   ragged  the same with \raggedbottom;
+%   wide    the table in adjustwidth with a negative right margin, so its
+%           box is wider than the column;
+%   side    the table with memoir's side caption;
+%   marker  the plain table with \marginnotereservefloat.
+%
+% \besidemode is the mode, reserve (default) or use.  The footnotes have
+% labels at their marks and in their texts, and at the end of the next run
+% we check from the .aux file: with reserve, the plain table must still
+% push a footnote to the next page (the problem); with use, the plain and
+% ragged tables must not.  That the other tables keep the margin beside
+% them empty is checked by test/floatsmode.sh, which compares their PDFs
+% in the two modes.  Needs three runs.
+\documentclass[a4paper]{memoir}
+\setlrmarginsandblock{2cm}{6cm}{*}
+\setmarginnotes{1em}{4.5cm}{1em}
+\setsidecaps{1em}{4.5cm}
+\checkandfixthelayout
+\usepackage{marginfix}
+\footnotesinmargin
+\usepackage{lipsum}
+\ifdefined\floatcase\else\def\floatcase{plain}\fi
+\ifdefined\besidemode\else\def\besidemode{reserve}\fi
+\providecommand\marginnotebesidefloats[1]{}
+\providecommand\marginnotereservefloat{}
+\marginnotebesidefloats{\besidemode}
+\makeatletter
+% \IfCase{case}{if}{else}
+\newcommand\IfCase[3]{%
+  \def\reserved@a{#1}%
+  \ifx\floatcase\reserved@a
+    \expandafter\@firstoftwo
+  \else
+    \expandafter\@secondoftwo
+  \fi{#2}{#3}}
+\IfCase{ragged}{\raggedbottom}{}
+\newcounter{fnmark}
+\newcommand\fn[1]{%
+  \stepcounter{fnmark}\label{mk\thefnmark}%
+  \footnote{\label{fn\thefnmark}FN\thefnmark: #1}}
+\def\ft@page#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax -1\else
+    \expandafter\expandafter\expandafter\ft@second
+      \csname r@#1\endcsname\@nil\fi}
+\def\ft@second#1#2#3\@nil{#2}
+\newcount\ft@i
+\newcount\ft@off
+\AtEndDocument{%
+  \ifnum\ft@page{fn\the\c@fnmark}<\z@
+    \typeout{floatstest: labels undefined, rerun to check}%
+  \else
+    \ft@i\z@
+    \@whilenum\ft@i<\c@fnmark\do{%
+      \advance\ft@i\@ne
+      \ifnum\ft@page{mk\the\ft@i}=\ft@page{fn\the\ft@i}\else
+        \advance\ft@off\@ne
+      \fi}%
+    \typeout{floatstest (\floatcase, \besidemode): \the\c@fnmark\space
+      footnotes, \the\ft@off\space off their mark's page}%
+    \def\reserved@a{use}%
+    \ifx\besidemode\reserved@a
+      \@tempswafalse
+      \IfCase{plain}{\@tempswatrue}{}%
+      \IfCase{ragged}{\@tempswatrue}{}%
+      \if@tempswa\ifnum\ft@off>\z@
+        \PackageError{floatstest}{Footnotes moved beside a narrow bottom
+          float in mode use}\@ehc
+      \fi\fi
+    \else
+      \IfCase{plain}{\ifnum\ft@off=\z@
+        \PackageError{floatstest}{No footnote moved in mode reserve:
+          the test no longer reproduces the problem}\@ehc
+      \fi}{}%
+    \fi
+  \fi}
+\newcommand\thetable@rows{%
+  \hline A & B & C\\ \hline
+  1 & 2 & 3\\ 4 & 5 & 6\\ 7 & 8 & 9\\ 1 & 2 & 3\\ 4 & 5 & 6\\ 7 & 8 & 9\\
+  1 & 2 & 3\\ 4 & 5 & 6\\ 7 & 8 & 9\\ 1 & 2 & 3\\ 4 & 5 & 6\\ 7 & 8 & 9\\
+  \hline}
+\newcommand\testtable{%
+  \begin{table}[b]
+    \IfCase{marker}{\marginnotereservefloat}{}%
+    \IfCase{side}{%
+      \begin{sidecaption}{A table with a side caption.}
+        \centering\begin{tabular}{lll}\thetable@rows\end{tabular}
+      \end{sidecaption}}{%
+    \IfCase{wide}{%
+      \begin{adjustwidth}{0pt}{-4cm}
+        \centering\begin{tabular}{lll}\thetable@rows\end{tabular}
+      \end{adjustwidth}
+      \caption{A table wider than the column.}}{%
+      \centering\begin{tabular}{lll}\thetable@rows\end{tabular}
+      \caption{A plain table at the bottom.}}}%
+  \end{table}}
+\makeatother
+\begin{document}
+\lipsum[1-2]
+\testtable
+\lipsum[3][1-4]\fn{\lipsum[4][1-4]} \lipsum[3][5-8]\fn{\lipsum[5][1-4]}
+\lipsum[6][1-4]\fn{\lipsum[7][1-4]} \lipsum[6][5-9]\fn{\lipsum[8][1-4]}
+\fn{\lipsum[9][1-3]} \lipsum[10][1-3]\fn{\lipsum[11][1-5]}
+\lipsum[12][1-3]\fn{\lipsum[13][1-5]} \lipsum[14][1-3]\fn{\lipsum[15][1-3]}
+\lipsum[18-24]
+\end{document}

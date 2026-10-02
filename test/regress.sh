@@ -7,8 +7,14 @@
 # Usage (from the repository root, after make marginfix.sty):
 #   test/regress.sh [BASE] [TEST.tex ...]
 set -e
-base=${1:-f9248c4}
-[ $# -gt 0 ] && shift
+if [ $# -gt 0 ]; then
+  base=$1; shift
+else
+  first=$(git log --reverse --format=%H -S'\marginnotedeferrable' \
+    -- marginfix.dtx | head -n 1)
+  [ -n "$first" ] || { echo "no commit with deferrable notes" >&2; exit 2; }
+  base=$first^
+fi
 tests=${*:-test/*.tex}
 root=$(pwd)
 tmp=$(mktemp -d)
