@@ -12,8 +12,10 @@ marginfix.pdf:marginfix.dtx
 
 .PHONY: test clean
 
+SPLITRULES_JOBS=splitrules-within splitrules-beyond splitrules-write
+
 test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf anchorpage.pdf priority-test \
-	modechange.pdf modechange-warn.pdf off-test
+	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
@@ -48,8 +50,8 @@ anchorpage.pdf:marginfix.sty test/anchorpage.tex
 # (see test/prioritycheck.tex) read the pages from the previous run.  A
 # failed check is a LaTeX error, so make stops.  We also check that the
 # reproducers give the warnings of their mode.
-PRIORITY_TESTS=priority fill stress-3 stress-8b
-PRIORITY_MODES=warn defer
+PRIORITY_TESTS=priority fill split stress-3 stress-8b
+PRIORITY_MODES=warn defer split
 PRIORITY_JOBS=$(foreach t,$(PRIORITY_TESTS),$(foreach m,$(PRIORITY_MODES),$(t)-$(m)))
 
 .PHONY: priority-test regress
@@ -68,9 +70,20 @@ $(PRIORITY_JOBS:=.pdf): %.pdf: marginfix.sty test/prioritycheck.tex \
 	@case $* in \
 	  priority-warn|fill-warn) grep -q 'to a later page;' $*.log;; \
 	  priority-defer) grep -q 'to the next, to keep' $*.log;; \
+	  priority-split|fill-split|split-split) grep -q 'split at the end' $*.log;; \
 	esac || { echo "$*: expected warning missing"; exit 1; }
-	@case $* in fill-warn) grep -q 'did not fit and' $*.log;; esac \
+	@case $* in fill-warn) grep -q 'did not fit and' $*.log;; \
+	  split-split) grep -q 'between paragraphs (LT1)' $*.log;; esac \
 	  || { echo "$*: expected warning missing"; exit 1; }
+
+# Where notes are split (test/splitrules.tex): around the slack, and when
+# a \write stops the scan.
+$(SPLITRULES_JOBS:=.pdf): %.pdf: marginfix.sty test/splitrules.tex
+	t=$*; for i in 1 2 3; do \
+	  pdflatex -interaction=nonstopmode -jobname=$* \
+	    "\\def\\prioritymode{split}\\def\\splitcase{$${t#*-}}\\input{test/splitrules}" \
+	    >/dev/null || { grep -A3 '^!' $*.log; exit 1; }; done
+	@grep 'splitrules (' $*.log
 
 # Changing the mode in the document, and the file names of notes in
 # included files (test/modechange.tex): first in mode defer after the

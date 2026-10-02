@@ -5,11 +5,11 @@
 % note, and \fn one at its mark, so that at the end of the next run we can
 % check from the .aux file that
 %
-%   * every footnote is on the page of its mark (mode defer), and
+%   * every footnote is on the page of its mark (modes defer and split), and
 %   * the commentary notes are in order (all modes).
 %
 % The mode comes from \prioritymode (default warn), e.g.
-%   pdflatex -jobname=priority-defer "\def\prioritymode{defer}\input{test/priority}"
+%   pdflatex -jobname=priority-split "\def\prioritymode{split}\input{test/priority}"
 % A failed check is a LaTeX error, so pdflatex exits non-zero.  If
 % \ifexpectmoved is true (set it before \begin{document}), mode warn must
 % leave a footnote off its page: that is the problem the test reproduces.
