@@ -7,6 +7,11 @@
 %   ragged    the same with \raggedbottom;
 %   wide      the table in adjustwidth with a negative right margin;
 %   overfull  a table wider than the text, an overfull line;
+%   nested    such a table in a top-aligned minipage of the column's width,
+%             so that the overfull line is inside a box in the line;
+%   lost      the plain table, with the penalties that let marginfix take
+%             the caption's \write apart lost (\protected@write restored),
+%             so that the float counts as wide, with a message in the log;
 %   left      the table in adjustwidth with a negative left margin, with
 %             the notes in the left margin (\reversemarginpar);
 %   verso     the table in adjustwidth* on a verso page, sticking out on
@@ -58,6 +63,10 @@
 \marginnotebesidefloats{\besidemode}
 \IfCase{split}{\marginnotepriority{split}}{}
 \IfCase{ragged}{\raggedbottom}{}
+\IfCase{lost}{\AtBeginDocument{%
+  \ifdefined\MFX@orig@protected@write
+    \let\protected@write\MFX@orig@protected@write
+  \fi}}{}
 \IfCase{deferred}{\setcounter{bottomnumber}{1}}{}
 \newcounter{fnmark}
 \newcommand\fn[1]{%
@@ -168,8 +177,13 @@
     \IfCase{overfull}{%
       \centering\begin{tabular}{p{7cm}p{7cm}l}\rows\end{tabular}
       \caption{A table wider than the text.}\label{tab}}{%
+    \IfCase{nested}{%
+      \begin{minipage}[t]{\columnwidth}
+        \centering\begin{tabular}{p{7cm}p{7cm}l}\rows\end{tabular}
+      \end{minipage}
+      \caption{A wide table in a minipage.}\label{tab}}{%
       \plaintable
-      \caption{A plain table at the bottom.}\label{tab}}}}}}%
+      \caption{A plain table at the bottom.}\label{tab}}}}}}}%
   \end{table}%
   \IfCase{two}{%
     \begin{table}[b]
