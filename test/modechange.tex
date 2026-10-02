@@ -1,0 +1,45 @@
+% regress: skip (sets a mode of its own)
+%
+% Test of changing the mode in the middle of the document, and of the file
+% names in the warnings.  The document starts in mode warn and includes the
+% reproducer test/modechange-part.tex with \import: its footnotes move to
+% the next page, and the warning names that file.  After a \clearpage it
+% switches to mode \modeB (default defer) and includes the reproducer
+% again, with \input: now the footnotes (3 and 4) must stay on their page,
+% and the warning about the moved deferrable note names that file.  (With
+% \def\modeB{warn}, footnote 3 or 4 moves too, which shows that the second
+% part does test the mode.)  The warnings are checked by make.  Needs three
+% runs.
+\documentclass[a4paper]{memoir}
+\setlrmarginsandblock{2cm}{6cm}{*}
+\setmarginnotes{1em}{4.5cm}{1em}
+\checkandfixthelayout
+\usepackage{marginfix}
+\footnotesinmargin
+\usepackage{lipsum}
+\usepackage{import}
+\input{test/prioritycheck}
+\expectmovedtrue
+\ifdefined\modeB\else\def\modeB{defer}\fi
+\makeatletter
+\AtEndDocument{%
+  \def\reserved@a{warn}%
+  \ifx\modeB\reserved@a\else
+    \ifnum\pt@page{fn3}<\z@\else
+      \ifnum\pt@page{fn3}=\pt@page{mk3}\else
+        \PackageError{prioritytest}{Footnote 3 moved in mode \modeB}\@ehc
+      \fi
+      \ifnum\pt@page{fn4}=\pt@page{mk4}\else
+        \PackageError{prioritytest}{Footnote 4 moved in mode \modeB}\@ehc
+      \fi
+      \typeout{modechange: footnotes 3 and 4 stayed in mode \modeB}%
+    \fi
+  \fi}
+\makeatother
+\begin{document}
+\import{test/}{modechange-part}
+\clearpage
+\marginnotepriority{\modeB}
+\input{test/modechange-part}
+\lipsum[8-12]
+\end{document}

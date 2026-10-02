@@ -15,7 +15,7 @@
            [2026/09/22 v1.4 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{1352}
+\CheckSum{1981}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -82,6 +82,11 @@
 %        so that notes are attached under the standard classes with
 %        \LaTeX{} 2020-10-01 or later (the kernel's first aid only did this
 %        for v1.2).}
+% \changes{v1.5}{2026/09/27}
+%       {(Daniel Bosk) Add deferrable notes (\cs{marginnotedeferrable}) and
+%        \cs{marginnotepriority}: warn when deferrable notes crowd an
+%        ordinary note off its page, and optionally move them to keep
+%        the ordinary notes with their callouts.}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -114,6 +119,11 @@
 % its own page is shipped (requesting a rerun through the usual ``Label(s)
 % may have changed'' mechanism).  This is automatic and needs no markup;
 % like cross-references it simply takes an extra pass to settle.
+%
+% As of v1.5 notes can be marked as \emph{deferrable}: commentary that may
+% move to a later page, so that the ordinary notes
+% after it (for instance footnotes set in the margin) stay beside their
+% callouts.  See section~\ref{sec:priority}.
 %
 % \section{Options}
 % There are currently no options that do anything yet.
@@ -194,6 +204,69 @@
 % using \cs{marginphantom}\oarg{pos}\marg{size}, which is essentially
 % equivalent to \cs{blockmargin}\oarg{pos}\cs{unblockmargin}\oarg{pos$+$size}.
 % Either argument may be negative to refer upward rather than downward.
+%
+% \section{Deferrable notes and priority}
+% \label{sec:priority}
+% marginfix sets the notes of a page in the order of their callouts, and when
+% the margin is full, the first note that doesn't fit moves to the next page,
+% taking every later note with it.  That is usually what we want, but not
+% when the notes are of two kinds.  Take a book with its footnotes in the
+% margin (\pkg{memoir}'s \cs{footnotesinmargin}) and long commentary notes
+% in the same margin, say for the teacher's edition.  A few commentary notes
+% called out high on a page can fill the margin, and then a footnote called
+% out lower down moves to the next page, away from its mark, while the
+% commentary, which could just as well have continued on the next page,
+% stays.
+%
+% \DescribeMacro{\marginnotedeferrable}
+% Writing \cs{marginnotedeferrable} in the text of a note marks the note as
+% \emph{deferrable}:
+% \begin{verbatim}
+% \marginpar{\footnotesize\marginnotedeferrable Why this example: ...}
+% \end{verbatim}
+% All other notes are \emph{ordinary}.  A package that makes commentary
+% notes can mark
+% them all by putting \cs{marginnotedeferrable} in the note text it builds,
+% guarded by |\ifdefined\marginnotedeferrable| so that it still works with
+% older versions of marginfix.  Used outside a margin note,
+% \cs{marginnotedeferrable} does nothing but warn.
+%
+% \DescribeMacro{\marginnotepriority}
+% What marginfix does with the deferrable notes is set by
+% \cs{marginnotepriority}\marg{mode}, in the preamble or anywhere in the
+% document.  The modes are:
+% \begin{description}
+% \item[\texttt{warn}] (the default) Notes are set exactly as without
+%   deferrable notes, but whenever an ordinary note moves to a later page
+%   while deferrable notes ahead of it stayed, or didn't fit either, we warn,
+%   naming the ordinary note and the deferrable ones by the file and line
+%   where each note ends.  If a deferrable note that didn't fit took the
+%   notes after it along, the warning says so.  Then you know which note to
+%   shorten or re-anchor.
+% \item[\texttt{defer}] A deferrable note that is in the way moves, whole, to
+%   the next page, so that the ordinary notes after it fit on their page.
+%   The notes of each kind keep their order.  On the next page, the moved
+%   note comes after that page's ordinary notes, up to its first deferrable
+%   note, so that it doesn't push the next page's footnotes away from their
+%   marks in turn.  We warn about every note that moves this way.
+%   A deferrable note that doesn't fit at all moves to the next page too,
+%   but no longer takes the notes after it along: the ordinary notes after
+%   it that fit are still set on the page.  The deferrable notes after it
+%   move with it, though, so that they keep their order; and an ordinary
+%   note that doesn't fit still takes every later note along, so that
+%   footnotes never trade places.
+% \item[\texttt{off}] As \texttt{warn}, but without the warnings.
+% \end{description}
+% An ordinary note can still move to a later page, when the ordinary notes
+% alone don't fit; nothing can help that.  A deferrable note may move more
+% than one page if the following margins are full as well.
+%
+% The mode is used when a page is built, and \TeX{} builds a page some
+% time after it has read the text on it.  So a new mode set in the middle of
+% the document applies from the next page built after the command is read,
+% which may be the page the command is on; put a \cs{clearpage} before it
+% to be sure.  For the same reason \cs{marginnotepriority} is global: it
+% takes effect whatever group it is in.
 %
 % \section{Interaction with other packages}
 % \subsection{memoir}
@@ -521,6 +594,7 @@
     \mfx@injected\global\let\mfx@injected\@empty
   \else
     \global\advance\mfx@placeid\@ne
+    \mfx@note@locate
     \mfx@maybe@defer
   \fi
 %<debug>\MFX@debug{addmarginpar (exit): marginlist=\MFX@mac\mfx@marginlist}%
@@ -706,11 +780,15 @@
 %
 % \begin{macros}{\mfx@marginpar@callout}
 % Prepended to \cs{marginpar}, this numbers each real callout and records its
-% anchor page for the next run.
+% anchor page for the next run.  It also notes where in the source the
+% callout is and that a new note is about to be set; both are for deferrable
+% notes (section~\ref{sec:deferrable}).
 %    \begin{macrocode}
 \def\mfx@marginpar@callout{%
   \ifmfx@in@inject\else
     \global\advance\mfx@callid\@ne
+    \global\mfx@fresh@notetrue
+    \expandafter\xdef\csname mfx@loc@\the\mfx@callid\endcsname{\mfx@where}%
     \if@filesw
       \protected@write\@auxout{\let\mfx@cpage\relax}{%
         \string\mfx@anchorpage{\the\mfx@callid}{\mfx@cpage}}%
@@ -804,6 +882,117 @@
   \MFX@cons\mfx@released{%
     \noexpand\mfx@build@note#1#2{0pt}%
     \noexpand\mfx@build@skip{\the\marginparpush}}%
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \section{Deferrable notes}
+% \label{sec:deferrable}
+% A note is deferrable if its text contains \cs{marginnotedeferrable}.  We
+% need to know that in the output routine, where all we have of a note is
+% its pair of box registers, so \cs{marginnotedeferrable} records it in a
+% control sequence named after the register numbers,
+% |\mfx@cls@|\meta{number}.  It runs while
+% the note's text is being typeset into its box, in \cs{@savemarbox}, and
+% then \cs{@currbox} and \cs{@marbox} name the two registers that the output
+% routine will later see.  (Which of the two ends up first in
+% \cs{mfx@marginlist} depends on the order \LaTeX{} pops them, so we mark
+% both.)
+%
+% Registers are reused, so the mark of an earlier note must not stick to a
+% later one.  We clear both marks when a new note starts to be typeset, which
+% we recognise by \cs{@marginparreset}: \LaTeX{} calls it at the start of
+% every \cs{@savemarbox}.  With the optional argument of \cs{marginpar} there
+% are two calls for one note, so we clear only on the first, flagged by
+% \cs{mfx@marginpar@callout}; a mark in either text then marks the note.
+% The same hook tells \cs{marginnotedeferrable} that it is inside a margin
+% note.
+%
+% \begin{macros}{\ifmfx@fresh@note,\ifmfx@in@note,\mfx@note@reset,
+%     \MFX@forget}
+% \cs{MFX@forget} also clears the flag that the note was moved whole from
+% the previous page, which we need for placing it on the next
+% (\cs{MFX@carrylate}).  These are only settings of flags, so a document
+% without deferrable notes is typeset exactly as before.
+%    \begin{macrocode}
+\newif\ifmfx@fresh@note
+\newif\ifmfx@in@note
+\g@addto@macro\@marginparreset{\mfx@note@reset}
+\def\mfx@note@reset{%
+  \mfx@in@notetrue
+  \ifmfx@fresh@note
+    \global\mfx@fresh@notefalse
+    \MFX@forget\@currbox
+    \MFX@forget\@marbox
+  \fi
+}
+\def\MFX@forget#1{%
+  \expandafter\global\expandafter\let
+    \csname mfx@cls@\number#1\endcsname\relax
+  \expandafter\global\expandafter\let
+    \csname mfx@carried@\number#1\endcsname\relax
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\marginnotedeferrable,\MFX@markdeferrable,\MFX@islow}
+% The mark itself, and the test for it: \cs{MFX@islow}\marg{box} sets
+% \cs{@tempswa} to whether the note in \emph{box} is deferrable.
+%    \begin{macrocode}
+\def\MFX@markdeferrable#1{%
+  \expandafter\gdef\csname mfx@cls@\number#1\endcsname{}%
+}
+\def\marginnotedeferrable{%
+  \ifmfx@in@note
+    \MFX@markdeferrable\@currbox
+    \MFX@markdeferrable\@marbox
+  \else
+    \PackageWarning{marginfix}{\string\marginnotedeferrable\space outside a
+      margin note ignored}%
+  \fi
+}
+\def\MFX@islow#1{%
+  \expandafter\ifx\csname mfx@cls@\number#1\endcsname\relax
+    \@tempswafalse
+  \else
+    \@tempswatrue
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\mfx@where,\mfx@note@locate,\MFX@loc}
+% The warnings name notes by where they are in the source.  At callout time
+% \cs{mfx@marginpar@callout} stores the file and line under the callout's
+% id, and \cs{@addmarginpar} moves it to the note's register once it knows
+% the register, the same way the anchor page is matched to the note.  The
+% line is the one where the \cs{marginpar} is expanded, that is, where the
+% note's text ends.  In the main file \cs{CurrentFile} is empty, so we use
+% the job name instead.  \cs{MFX@loc}\marg{box} expands to the location, or
+% to a question mark if we don't know it.
+%    \begin{macrocode}
+\def\mfx@where{%
+  \ifx\CurrentFile\@empty
+    \jobname
+  \else\ifx\CurrentFile\@undefined
+    \jobname
+  \else
+    \ifx\CurrentFilePath\@empty\else\CurrentFilePath/\fi\CurrentFile
+  \fi\fi
+  :\the\inputlineno}
+\def\mfx@note@locate{%
+  \expandafter\global\expandafter\let
+    \csname mfx@boxloc@\number\@currbox\expandafter\endcsname
+    \csname mfx@loc@\the\mfx@placeid\endcsname
+  \expandafter\global\expandafter\let
+    \csname mfx@loc@\the\mfx@placeid\endcsname\relax
+}
+\def\MFX@loc#1{%
+  \expandafter\ifx\csname mfx@boxloc@\number#1\endcsname\relax
+    ?%
+  \else
+    \csname mfx@boxloc@\number#1\endcsname
+  \fi
 }
 %    \end{macrocode}
 % \end{macros}
@@ -903,9 +1092,10 @@
 % with various parameters to indicate what material still needs to be
 % set in the margin.  This macro therefore must pull off the first $n>0$
 % of these commands to set on the current page ($n$ must be positive to
-% prevent infinite loops), and leave the rest to be deferred.  We do not
-% currently support taking notes out of order, though that is a possible
-% feature to allow in the future, on an opt-in basis.  The typeset
+% prevent infinite loops), and leave the rest to be deferred.  Notes are
+% taken in order, except that deferrable notes may give way to the ordinary
+% notes after them, on an opt-in basis (section~\ref{sec:priority@down}).
+% The typeset
 % material will be left in \cs{Mfx@marginbox}, which must have the same
 % height as \cs{@outputbox} (although because we \cs{unvbox}\cs{@outputbox}
 % in \cs{MFX@attachmargin}, we can't guarantee that this will correctly
@@ -985,15 +1175,20 @@
   \def\@elt##1##2{%
     \MFX@cons\mfx@pieceheights{\noexpand\@elt{\the\dimexpr##2-##1}}}%
   \mfx@marginpieces
+%    \end{macrocode}
+% Then the priority mode (\cs{marginnotepriority}) gets its say.  It sets
+% up the meanings of \cs{mfx@build@note}, \cs{mfx@build@skip}, and
+% \cs{mfx@build@clear} for the pass; in the modes \texttt{off} and
+% \texttt{warn} they are the ones defined below, and the mode
+% \texttt{warn} first looks at the list without changing anything
+% (section~\ref{sec:priority@down}).
+%    \begin{macrocode}
+  \csname MFX@down@\mfx@priority\endcsname
   \MFX@popdimen\Mfx@marginheight\mfx@pieceheights
 %    \end{macrocode}
 % Now we run forwards over the \cs{mfx@marginlist} to actually
 % operate on each thing in the margin.
 %    \begin{macrocode}
-  \let\mfx@build@note\MFX@margin@note@down
-  \let\mfx@build@skip\@gobble
-  \let\mfx@build@clear\MFX@build@clear@down
-  \let\mfx@marginout\@empty
   \MFX@run@clear\mfx@marginlist
 %<debug>\MFX@debug{buildmargin@down: RETURN
 %<debug>           marginout=\MFX@mac\mfx@marginout,
@@ -1188,6 +1383,397 @@
 % not sure where that comes from.
 %    \begin{macrocode}
 \def\MFX@minus@inf{-4000\p@}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@down@off}
+% The setup of the pass as described above, which is all the modes
+% \texttt{off} and \texttt{warn} do.
+%    \begin{macrocode}
+\def\MFX@down@off{%
+  \let\mfx@build@note\MFX@margin@note@down
+  \let\mfx@build@skip\@gobble
+  \let\mfx@build@clear\MFX@build@clear@down
+  \let\mfx@marginout\@empty
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \subsection{Priority in the first pass}
+% \label{sec:priority@down}
+% The pass above takes the notes strictly in order: it adds up their
+% heights, and the first note that doesn't fit moves to the next page
+% together with every note after it.  Where a note is called out plays no
+% part in this; that only matters in the later passes, which place the notes
+% that were taken.  So if deferrable notes early in the list use up the
+% margin, an ordinary note later in the list moves, even though it would
+% have fit had one of the deferrable notes moved instead.
+%
+% To find out whether that happens, we run the pass as a \emph{trial} first:
+% the same fitting, in the same order, but without changing anything.  The
+% trial reports the first ordinary note~$N$ that doesn't fit and the last
+% deferrable note~$L$ that was taken before it.  In the mode \texttt{warn}
+% the trial follows the order exactly like the real pass (a deferrable note
+% that doesn't fit ends the page), and if it finds both $N$ and~$L$ we warn,
+% naming $N$ and the deferrable notes ahead of it, and then run the real pass
+% as always.  Hence that mode never changes the layout.
+%
+% In the mode \texttt{defer} we instead put $L$ on a
+% \emph{skip list} and try again, until no ordinary note is kept off the page
+% by a deferrable one.  In these trials a deferrable note that is skipped, or
+% doesn't fit, takes all later deferrable notes with it to the next page, so
+% that the deferrable notes keep their order, but the ordinary notes after
+% it are still tried; the ordinary notes keep their order as before, since
+% the first one that doesn't fit ends the page.  So the rule is: a
+% deferrable note never holds up an ordinary note after it, but no note
+% overtakes a note of its own kind, and nothing overtakes an ordinary note.
+% This also fills the page after a long deferrable note that doesn't fit at
+% all, which in the mode \texttt{warn} (as in the pass above) would take
+% every later note to the next page.  We could let a later, shorter
+% deferrable note fill the gap too, but commentary notes are often read in
+% sequence, and a note carried to the next page ahead of the next page's
+% own deferrable notes (\cs{MFX@carrylate}) relies on their order.
+% A deferrable note that
+% doesn't fit gives its space back: the fitting test moves on to the next
+% piece of the margin when a note doesn't fit in the current one, and a note
+% we skip must not use up the pieces.  Every trial skips one more note, so
+% there are at most as many trials as there are deferrable notes on the page.
+% Then the real pass takes the notes as the last trial did, moving the notes
+% on the skip list, and the later deferrable ones, to the next page.
+%
+% A deferrable note moved whole goes to the top of the next page, like any
+% note that didn't fit.  But there it would push that page's ordinary notes
+% down, perhaps far from their marks, or even off that page too.  So in the
+% mode \texttt{defer} we first move such notes, before the trials, to just
+% before the first deferrable note of the page that wasn't moved (to keep
+% the deferrable notes in order), or to the end.
+%
+% \begin{macros}{\Mfx@idx,\ifmfx@lowblocked,\ifmfx@full,\Mfx@savedheight}
+% We number the notes in the list with \cs{Mfx@idx}, so that the trials and
+% the real pass can refer to the same note.  \cs{ifmfx@lowblocked} is true
+% once a deferrable note has moved and so all later ones must, and
+% \cs{ifmfx@full} once the page is full.
+%    \begin{macrocode}
+\newcount\Mfx@idx
+\newif\ifmfx@lowblocked
+\newif\ifmfx@full
+\newdimen\Mfx@savedheight
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@down@warn,\MFX@down@defer}
+% The two modes that look at the list.
+%    \begin{macrocode}
+\def\MFX@down@warn{%
+  \MFX@trials
+  \MFX@down@off
+}
+\def\MFX@down@defer{%
+  \MFX@carrylate
+  \MFX@trials
+  \Mfx@idx\z@
+  \mfx@lowblockedfalse
+  \mfx@fullfalse
+  \let\mfx@build@note\MFX@real@note
+  \let\mfx@build@skip\@gobble
+  \let\mfx@build@clear\MFX@real@clear
+  \let\mfx@marginout\@empty
+}
+\def\MFX@priority@warn{warn}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@trials,\mfx@skipset}
+% The trials start from the list of piece heights, which we keep in
+% \cs{mfx@pieceheights@all} and put back after each trial, since the fitting
+% test uses it up.  The skip list \cs{mfx@skipset} holds note numbers
+% separated by commas.
+%    \begin{macrocode}
+\def\MFX@trials{%
+  \let\mfx@pieceheights@all\mfx@pieceheights
+  \def\mfx@skipset{,}%
+  \MFX@trials@loop
+  \global\let\mfx@pieceheights\mfx@pieceheights@all
+}
+\def\MFX@trials@loop{%
+  \MFX@trial
+  \let\mfx@next\relax
+  \ifnum\mfx@trial@L>\z@
+    \ifx\mfx@priority\MFX@priority@warn
+      \PackageWarningNoLine{marginfix}{Margin note from \mfx@trial@Nloc\space
+        moved from page \thepage\MessageBreak to a later page; deferrable
+        margin notes\MessageBreak ahead of it: \mfx@trial@lows
+        \ifx\mfx@trial@blocker\@empty\else
+          \MessageBreak (\mfx@trial@blocker\space did not fit and
+          took\MessageBreak the notes after it along)%
+        \fi
+        \MessageBreak (shorten or move them, or use
+        \string\marginnotepriority)}%
+    \else
+      \edef\mfx@skipset{\mfx@skipset\mfx@trial@L,}%
+      \let\mfx@next\MFX@trials@loop
+    \fi
+  \fi
+  \mfx@next
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@trial,\MFX@trial@note,\MFX@trial@skip}
+% One trial runs over the list in a group, so that everything but the
+% results is forgotten afterwards; the results are \cs{mfx@trial@N} and
+% \cs{mfx@trial@L} (zero if there is none), the location of~$N$, the
+% locations of the deferrable notes taken before~$N$, the location of a
+% deferrable note that didn't fit and ended the page (mode \texttt{warn}).
+%    \begin{macrocode}
+\def\MFX@trial{%
+  \begingroup
+    \global\let\mfx@pieceheights\mfx@pieceheights@all
+    \MFX@popdimen\Mfx@marginheight\mfx@pieceheights
+    \Mfx@idx\z@
+    \mfx@lowblockedfalse
+    \mfx@fullfalse
+    \gdef\mfx@trial@N{0}%
+    \gdef\mfx@trial@L{0}%
+    \def\mfx@lastlow{0}%
+    \global\let\mfx@trial@lows\@empty
+    \global\let\mfx@trial@blocker\@empty
+    \let\mfx@build@note\MFX@trial@note
+    \let\mfx@build@skip\@gobble
+    \def\mfx@build@clear{\mfx@fulltrue}%
+    \mfx@marginlist
+  \endgroup
+}
+%    \end{macrocode}
+% A deferrable note is taken if it isn't blocked and fits.  If it doesn't
+% fit, the mode \texttt{warn} fills the page, like the real pass, and counts
+% the note among those in the way; the other modes only block the later
+% deferrable notes.
+%    \begin{macrocode}
+\def\MFX@trial@note#1#2#3{%
+  \advance\Mfx@idx\@ne
+  \let\mfx@build@skip\@gobble
+  \ifnum\mfx@trial@N=\z@
+    \MFX@whichbox\@marbox#1#2%
+    \MFX@islow#1%
+    \if@tempswa
+      \ifmfx@full\else
+        \MFX@inskip
+        \ifin@\mfx@lowblockedtrue\fi
+        \ifmfx@lowblocked\else
+          \MFX@try@fit{\ht\@marbox+\dp\@marbox}%
+          \if@tempswa
+            \edef\mfx@lastlow{\the\Mfx@idx}%
+            \xdef\mfx@trial@lows{\mfx@trial@lows\MFX@loc#1\space}%
+            \let\mfx@build@skip\MFX@trial@skip
+          \else
+            \ifx\mfx@priority\MFX@priority@warn
+              \mfx@fulltrue
+              \edef\mfx@lastlow{\the\Mfx@idx}%
+              \xdef\mfx@trial@lows{\mfx@trial@lows\MFX@loc#1\space}%
+              \xdef\mfx@trial@blocker{\MFX@loc#1}%
+            \else
+              \mfx@lowblockedtrue
+            \fi
+          \fi
+        \fi
+      \fi
+    \else
+%    \end{macrocode}
+% An ordinary note that doesn't fit, or comes after the page is full, is our
+% $N$.
+%    \begin{macrocode}
+      \@tempswafalse
+      \ifmfx@full\else
+        \if\MFX@check@fit{}{\ht\@marbox+\dp\@marbox}%
+          \let\mfx@build@skip\MFX@trial@skip
+        \fi
+      \fi
+      \if@tempswa\else
+        \xdef\mfx@trial@N{\the\Mfx@idx}%
+        \xdef\mfx@trial@L{\mfx@lastlow}%
+        \xdef\mfx@trial@Nloc{\MFX@loc#1}%
+      \fi
+    \fi
+  \fi
+}
+\def\MFX@trial@skip#1{%
+  \if\MFX@check@fit{}{#1}\else
+    \mfx@fulltrue
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@try@fit,\MFX@inskip}
+% \cs{MFX@try@fit}\marg{size} is \cs{MFX@check@fit} for a deferrable note:
+% if the note doesn't fit, it puts back the space and pieces it used up.  It
+% leaves the result in \cs{@tempswa}.  \cs{MFX@inskip} sets \cs{ifin@} to
+% whether the current note is on the skip list.
+%    \begin{macrocode}
+\def\MFX@try@fit#1{%
+  \Mfx@savedheight\Mfx@marginheight
+  \let\mfx@saved@pieceheights\mfx@pieceheights
+  \if\MFX@check@fit{}{#1}%
+  \else
+    \Mfx@marginheight\Mfx@savedheight
+    \global\let\mfx@pieceheights\mfx@saved@pieceheights
+  \fi
+}
+\def\MFX@inskip{%
+  \edef\reserved@a{\noexpand\in@{,\the\Mfx@idx,}{\mfx@skipset}}%
+  \reserved@a
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@real@note}
+% The real pass of the mode \texttt{defer}.  It does what
+% \cs{MFX@margin@note@down} does, but takes and moves notes as the last
+% trial did.  A note on the skip list is moved, and we warn.  So is a
+% deferrable note that doesn't fit, but without a warning, since marginfix
+% has always moved such notes.
+% Only the first deferrable note to move gets this far: the deferrable
+% notes after it are blocked already.
+%    \begin{macrocode}
+\def\MFX@real@note#1#2#3{%
+  \advance\Mfx@idx\@ne
+  \MFX@whichbox\@marbox#1#2%
+  \ifmfx@full
+    \MFX@defer{#1}{#2}%
+  \else
+    \MFX@islow#1%
+    \if@tempswa
+      \ifmfx@lowblocked\in@false\else\MFX@inskip\fi
+      \ifin@
+        \MFX@give@way{#1}{#2}{#3}\@tempswatrue
+      \else
+        \ifmfx@lowblocked
+          \MFX@defer{#1}{#2}%
+        \else
+          \MFX@try@fit{\ht\@marbox+\dp\@marbox}%
+          \if@tempswa
+            \MFX@place{#1}{#2}{#3}%
+          \else
+            \MFX@give@way{#1}{#2}{#3}\@tempswafalse
+          \fi
+        \fi
+      \fi
+    \else
+      \if\MFX@check@fit{}{\ht\@marbox+\dp\@marbox}%
+        \MFX@place{#1}{#2}{#3}%
+      \else
+        \mfx@fulltrue
+        \MFX@defer{#1}{#2}%
+      \fi
+    \fi
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@give@way,\ifmfx@warnmove}
+% \cs{MFX@give@way}\marg{box}\marg{box}\marg{position}\marg{warn} moves the
+% first deferrable note that must move.  The last argument sets
+% \cs{@tempswa} to whether to warn about it.
+%    \begin{macrocode}
+\newif\ifmfx@warnmove
+\def\MFX@give@way#1#2#3#4{%
+  \mfx@lowblockedtrue
+  \edef\mfx@thisloc{\MFX@loc#1}%
+  #4%
+  \if@tempswa\mfx@warnmovetrue\else\mfx@warnmovefalse\fi
+  \ifmfx@warnmove
+    \PackageWarningNoLine{marginfix}{Deferrable margin note from
+      \mfx@thisloc\MessageBreak moved from page \thepage\space
+      to the next, to keep\MessageBreak the margin notes after it
+      on their page}%
+  \fi
+  \MFX@defer{#1}{#2}%
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@place,\MFX@defer,\MFX@real@skip,\MFX@real@clear}
+% Taking a note is as in \cs{MFX@margin@note@down}, and moving one as in
+% \cs{MFX@build@clear@down}, but a deferrable note moved whole is flagged
+% for \cs{MFX@carrylate}.  A skip is taken if it follows a note that was
+% taken and fits, and moved if it follows a note that was moved.  The first
+% \cs{clearmargin} fills the page, and later ones are kept for the next.
+%    \begin{macrocode}
+\def\MFX@place#1#2#3{%
+  \expandafter\global\expandafter\let
+    \csname mfx@carried@\number#1\endcsname\relax
+  \MFX@snoc\mfx@marginout{%
+    \noexpand\@cons\noexpand\@freelist#1%
+    \noexpand\@cons\noexpand\@freelist#2%
+    \noexpand\mfx@build@note\@marbox{#3}}%
+  \let\mfx@build@skip\MFX@real@skip
+}
+\def\MFX@defer#1#2{%
+  \MFX@islow#1%
+  \if@tempswa
+    \expandafter\gdef\csname mfx@carried@\number#1\endcsname{}%
+  \fi
+  \MFX@cons\mfx@marginlist{\noexpand\mfx@build@note#1#2{\MFX@minus@inf}}%
+  \def\mfx@build@skip##1{%
+    \MFX@cons\mfx@marginlist{\noexpand\mfx@build@skip{##1}}}%
+}
+\def\MFX@real@skip#1{%
+  \if\MFX@check@fit{}{#1}%
+    \MFX@snoc\mfx@marginout{\noexpand\mfx@build@skip{#1}}%
+  \else
+    \mfx@fulltrue
+    \let\mfx@build@skip\@gobble
+  \fi
+}
+\def\MFX@real@clear{%
+  \ifmfx@full
+    \MFX@cons\mfx@marginlist{\noexpand\mfx@build@clear}%
+  \else
+    \mfx@fulltrue
+  \fi
+  \let\mfx@build@skip\@gobble
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@carrylate,\MFX@cl@flush}
+% Before the trials, \cs{MFX@carrylate} moves the deferrable notes that were
+% moved whole from the previous page to just before the first deferrable
+% note that wasn't, or to the end of the list, each with the skip after it.
+% We collect them in \cs{mfx@cl@carried} and flush them into the new list
+% \cs{mfx@cl@out} when we meet a deferrable note or a \cs{clearmargin}.
+%    \begin{macrocode}
+\def\MFX@carrylate{%
+  \begingroup
+    \global\let\mfx@cl@carried\@empty
+    \global\let\mfx@cl@out\@empty
+    \def\mfx@cl@add{\MFX@cons\mfx@cl@out}%
+    \def\mfx@build@note##1##2##3{%
+      \expandafter\ifx\csname mfx@carried@\number##1\endcsname\relax
+        \MFX@islow##1%
+        \if@tempswa\MFX@cl@flush\fi
+        \def\mfx@cl@add{\MFX@cons\mfx@cl@out}%
+      \else
+        \def\mfx@cl@add{\MFX@cons\mfx@cl@carried}%
+      \fi
+      \mfx@cl@add{\noexpand\mfx@build@note##1##2{##3}}}%
+    \def\mfx@build@skip##1{\mfx@cl@add{\noexpand\mfx@build@skip{##1}}}%
+    \def\mfx@build@clear{%
+      \MFX@cl@flush
+      \def\mfx@cl@add{\MFX@cons\mfx@cl@out}%
+      \mfx@cl@add{\noexpand\mfx@build@clear}}%
+    \mfx@marginlist
+    \MFX@cl@flush
+  \endgroup
+  \global\let\mfx@marginlist\mfx@cl@out
+}
+\def\MFX@cl@flush{%
+  \xdef\mfx@cl@out{\unexpanded\expandafter{\mfx@cl@out}%
+    \unexpanded\expandafter{\mfx@cl@carried}}%
+  \global\let\mfx@cl@carried\@empty
+}
 %    \end{macrocode}
 % \end{macros}
 %
@@ -1793,6 +2379,22 @@
     \fi
   }%
   \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\marginnotepriority,\mfx@priority}
+% The mode is kept by name in \cs{mfx@priority}, and \cs{MFX@buildmargin@down}
+% calls |\MFX@down@|\meta{mode}, so a mode is valid if that macro exists.
+% We expand the name, since we compare it with \cs{ifx}, and the argument
+% may be a macro.  The default is \texttt{warn}.
+%    \begin{macrocode}
+\def\mfx@priority{warn}
+\def\marginnotepriority#1{%
+  \@ifundefined{MFX@down@#1}%
+    {\PackageError{marginfix}{Unknown margin note priority `#1'}%
+       {Use one of warn, defer or off.}}%
+    {\xdef\mfx@priority{#1}}%
 }
 %    \end{macrocode}
 % \end{macros}
