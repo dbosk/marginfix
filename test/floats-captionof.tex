@@ -1,0 +1,16 @@
+% Test that \captionof outside a float is not treated as a float by
+% \marginnotebesidefloats: it gets no penalties, so mode use typesets it as
+% mode reserve (checked by test/floatsmode.sh).
+\ifdefined\besidemode\else\def\besidemode{reserve}\fi
+\documentclass[a4paper]{article}
+\usepackage{caption}
+\usepackage{marginfix}
+\usepackage{lipsum}
+\providecommand\marginnotebesidefloats[1]{}
+\marginnotebesidefloats{\besidemode}
+\begin{document}
+\lipsum[1-3]\par\noindent\rule{3cm}{2cm}\par\nobreak
+\captionof{figure}{One}\label{a}\lipsum[4-8]
+\noindent\rule{3cm}{5cm}\par\captionof{figure}{Two}\label{b}\lipsum[9-14]
+\noindent\rule{3cm}{3cm}\par\captionof{figure}{Three}\label{c}\lipsum[1-3]
+\end{document}
