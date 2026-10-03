@@ -13,7 +13,7 @@ marginfix.pdf:marginfix.dtx
 .PHONY: test clean
 
 SPLITRULES_JOBS=splitrules-within splitrules-beyond splitrules-write
-FLOATS_CASES=plain ragged wide overfull nested left verso side marker two topbot block split deferred lost
+FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two topbot block split deferred lost
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
