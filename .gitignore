@@ -14,3 +14,6 @@ web/
 inlinetest.tex
 marginfix-2.dtx
 pdfpos.tex
+*.nav
+*.snm
+*.toc
