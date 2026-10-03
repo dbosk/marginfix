@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3193}
+\CheckSum{3206}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -1190,22 +1190,25 @@
     \vskip\z@\unvbox\Mfx@marginbox}%
 %    \end{macrocode}
 % Next we need to figure out which side of \cs{@outputbox} to attach
-% the \cs{Mfx@marginbox} on.  We now use \cs{columnwidth} instead of
+% the \cs{Mfx@marginbox} on.  We now use the column width instead of
 % \cs{wd}\cs{@outputbox} to set the right-hand margins, since tufte-\LaTeX
 % sometimes makes too-wide output boxes.  If this becomes a problem,
 % we'll need to consider making this configurable elsewhere.  We should
 % also pay attention to whether adding a box at the top of \cs{@outputbox}
 % might have unintended consequences w.r.t. any glue being retained that
 % should have been swallowed.  This will require further investigation.
+% The column width comes from \cs{MFX@columnwidth}, not from
+% \cs{columnwidth} (see below).
 %    \begin{macrocode}
   \setbox\@outputbox\vbox{%
     \begingroup
+    \MFX@columnwidth
     \setbox\@tempboxa\vbox{%
       \hbox{%
         \if\MFX@leftmargin
           \llap{\box\Mfx@marginbox\hskip\marginparsep}%
         \else
-          \hskip\columnwidth
+          \hskip\dimen@
           \rlap{\hskip\marginparsep\box\Mfx@marginbox}%
         \fi
       }}%
@@ -1216,6 +1219,32 @@
     \unskip
     \unvbox\@outputbox
   }%
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@columnwidth}
+% \changes{v1.2.1}{2026/10/03}
+%       {Attach the margin at the width of the column that \LaTeX\ sets,
+%        not at the \cs{columnwidth} of the group that the page broke in.
+%        A wider value moved the notes of the page off the paper.}
+% The output routine runs inside whatever groups were open when the page
+% broke, so it sees their local values.  An environment that widens the
+% text into the margin may set \cs{columnwidth} locally, for instance so
+% that a table inside it can use \verb|p{0.5\columnwidth}| for half the
+% new width.  If the page breaks inside such an environment, \cs{hskip}
+% \cs{columnwidth} would put all the notes of the page that far to the
+% right, past the edge of the paper, with no error.  So we set |\dimen@|
+% to the width of a column as \LaTeX\ computes it at |\begin{document}|
+% and in \cs{onecolumn} and \cs{twocolumn}, all of which set
+% \cs{columnwidth} globally.
+%    \begin{macrocode}
+\def\MFX@columnwidth{%
+  \dimen@\textwidth
+  \if@twocolumn
+    \advance\dimen@-\columnsep
+    \divide\dimen@\tw@
+  \fi
 }
 %    \end{macrocode}
 % \end{macros}

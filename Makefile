@@ -17,7 +17,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf anchorpage.pdf priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf
 
@@ -44,6 +44,13 @@ stretch.pdf:marginfix.sty test/stretch.tex
 
 issue-15.pdf:marginfix.sty test/issue-15.tex
 	pdflatex test/issue-15.tex
+
+# Two runs: the first saves where the note ends up, the second checks it.
+columnwidth.pdf:marginfix.sty test/columnwidth.tex
+	pdflatex -interaction=nonstopmode test/columnwidth.tex >/dev/null || true
+	pdflatex -interaction=nonstopmode test/columnwidth.tex >/dev/null \
+	  || { grep -A3 '^!' columnwidth.log; exit 1; }
+	@grep 'columnwidth test:' columnwidth.log
 
 # Two passes: the first records anchor pages, the second fixes placement.
 anchorpage.pdf:marginfix.sty test/anchorpage.tex
