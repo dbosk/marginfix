@@ -1,7 +1,8 @@
 #!/bin/sh
 # Check \marginnotebesidefloats on test/floats.tex: a bottom float that
 # extends into the margin (lines wider than the column on either side, an
-# overfull table, a side caption, or \marginnotereservefloat) must keep the
+# overfull table, also where the page breaks in a group with a wider
+# \columnwidth, a side caption, or \marginnotereservefloat) must keep the
 # margin beside it empty, and so must a margin blocked across the end of
 # the page, so mode use must typeset these byte for byte as mode reserve;
 # a plain table must not.  A float whose caption marginfix can't take
@@ -14,7 +15,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 export SOURCE_DATE_EPOCH=0 FORCE_SOURCE_DATE=1
 status=0
-for c in wide overfull nested left verso side marker block lost plain; do
+for c in wide overfull group nested left verso side marker block lost plain; do
   for m in reserve use; do
     mkdir -p "$tmp/$m"
     for i in 1 2 3; do
@@ -30,8 +31,8 @@ for c in wide overfull nested left verso side marker block lost plain; do
     same=no
   fi
   case $c,$same in
-    plain,no|wide,yes|overfull,yes|nested,yes|left,yes|verso,yes|side,yes|\
-    marker,yes|block,yes|lost,yes)
+    plain,no|wide,yes|overfull,yes|group,yes|nested,yes|left,yes|verso,yes|\
+    side,yes|marker,yes|block,yes|lost,yes)
       echo "as expected: $c (same: $same)";;
     *) echo "UNEXPECTED:  $c (same: $same)"; status=1;;
   esac

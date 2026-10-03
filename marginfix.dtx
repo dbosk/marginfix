@@ -15,7 +15,7 @@
            [2026/09/22 v1.4 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3179}
+\CheckSum{3193}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -1429,7 +1429,12 @@
 % \cs{MFX@floatwide}\marg{box} sets \cs{ifmfx@fw@wide} (globally) to
 % whether the float in \emph{box} extends into the margin, as described
 % above.  It works in a group, on a copy, with the warnings about bad boxes
-% turned off, since we repack lines and split lists to find out.
+% turned off, since we repack lines and split lists to find out.  It
+% compares widths with the width of a column as \LaTeX\ sets it
+% (\cs{mfx@fw@colwidth}), not with \cs{columnwidth}: we are in the output
+% routine, inside whatever groups were open where the page broke, and
+% one of them may have set a wider \cs{columnwidth}, as an environment
+% that widens the text into the margin may do.
 % \cs{MFX@fw@list}\marg{box} walks the list in \emph{box} a level deeper,
 % in a group of its own, so that each level has its own registers.
 %    \begin{macrocode}
@@ -1450,6 +1455,12 @@
     \Mfx@fw@depth\z@
     \Mfx@fw@pieces\z@
     \gdef\mfx@fw@why{}%
+    \dimen@\textwidth
+    \if@twocolumn
+      \advance\dimen@-\columnsep
+      \divide\dimen@\tw@
+    \fi
+    \edef\mfx@fw@colwidth{\the\dimen@}%
     \setbox\Mfx@fw@item\copy#1%
     \MFX@fw@vbox
   \endgroup
@@ -1521,7 +1532,7 @@
 % the list is too wide if it is wider than the column; else we walk it.
 %    \begin{macrocode}
 \def\MFX@fw@hbox{%
-  \ifdim\wd\Mfx@fw@item>\dimexpr\columnwidth+\p@\relax
+  \ifdim\wd\Mfx@fw@item>\dimexpr\mfx@fw@colwidth+\p@\relax
     \MFX@fw@setwide{line}%
   \else
     \setbox\Mfx@fw@item
@@ -1534,7 +1545,7 @@
   \fi
 }
 \def\MFX@fw@vbox{%
-  \ifdim\wd\Mfx@fw@item>\dimexpr\columnwidth+\p@\relax
+  \ifdim\wd\Mfx@fw@item>\dimexpr\mfx@fw@colwidth+\p@\relax
     \MFX@fw@setwide{line}%
   \else
     \MFX@fw@list

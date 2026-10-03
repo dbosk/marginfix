@@ -7,6 +7,9 @@
 %   ragged    the same with \raggedbottom;
 %   wide      the table in adjustwidth with a negative right margin;
 %   overfull  a table wider than the text, an overfull line;
+%   group     the wide table, with the page broken inside a group
+%             that sets a wider \columnwidth, as an environment that
+%             widens the text into the margin may do;
 %   nested    such a table in a top-aligned minipage of the column's width,
 %             so that the overfull line is inside a box in the line;
 %   lost      the plain table, with the penalties that let marginfix take
@@ -165,6 +168,9 @@
       \begin{sidecaption}{A table with a side caption.}[tab]
         \plaintable
       \end{sidecaption}}{%
+    \IfCase{group}{%
+      \begin{adjustwidth}{0pt}{-4cm}\plaintable\end{adjustwidth}
+      \caption{A table wider than the column.}\label{tab}}{%
     \IfCase{wide}{%
       \begin{adjustwidth}{0pt}{-4cm}\plaintable\end{adjustwidth}
       \caption{A table wider than the column.}\label{tab}}{%
@@ -183,7 +189,7 @@
       \end{minipage}
       \caption{A wide table in a minipage.}\label{tab}}{%
       \plaintable
-      \caption{A plain table at the bottom.}\label{tab}}}}}}}%
+      \caption{A plain table at the bottom.}\label{tab}}}}}}}}%
   \end{table}%
   \IfCase{two}{%
     \begin{table}[b]
@@ -226,5 +232,8 @@
   \lipsum[1]\testtable
   \ltnote{\lipsum*[2][1-6]\par\lipsum*[3][1-5]}\notes
   \ltnote{\lipsum*[7][1-4]}\lipsum[18-24]}{%
-  \lipsum[1-2]\testtable\notes\lipsum[18-24]}}}
+\IfCase{group}{%
+  \lipsum[1-2]\testtable
+  \begingroup\columnwidth\paperwidth\notes\lipsum[18-24]\endgroup}{%
+  \lipsum[1-2]\testtable\notes\lipsum[18-24]}}}}
 \end{document}
