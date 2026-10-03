@@ -1,0 +1,68 @@
+% Pages that break inside a group that sets a wider \columnwidth, as an
+% environment that widens the text into the margin may do.  The notes on
+% those pages must still be in the margin beside the text: they used to
+% end up \columnwidth to the right of the text, off the paper, with no
+% error.
+%
+%   a  the page breaks in the middle of such a group;
+%   b  a note on an item near the foot of a page, then a block that can't
+%      be broken, in an environment that widens it into the blocked margin,
+%      which moves to the next page (as side-by-side code does in
+%      didactic): the page breaks at the glue that ends the list, still
+%      inside the environment.
+%
+% The notes save their positions, so the check needs two runs: the second
+% fails with an error if a note was not where it should be.
+\documentclass{article}
+\usepackage{lipsum}
+\usepackage{marginfix}
+\makeatletter
+\newcommand\savenotepos[1]{%
+  \pdfsavepos
+  \write\@auxout{\gdef\string\notexpos@#1{\the\pdflastxpos sp}}}
+\newcommand\checknotepos[1]{%
+  \ifcsname notexpos@#1\endcsname
+    \dimen@\dimexpr\csname notexpos@#1\endcsname
+      -(1in+\hoffset+\oddsidemargin+\textwidth+\marginparsep)\relax
+    \ifdim\dimen@<\z@ \dimen@-\dimen@ \fi
+    \ifdim\dimen@>\p@
+      \PackageError{columnwidth test}{Note #1 is at
+        x = \csname notexpos@#1\endcsname, not in the margin}\@ehc
+    \else
+      \typeout{columnwidth test: note #1 is in the margin}%
+    \fi
+  \else
+    \typeout{columnwidth test: rerun to check note #1}%
+  \fi
+}
+% Like didactic's fullwidth: a list that widens the lines into the margin
+% and sets \columnwidth to the new width.
+\newenvironment{widened}{%
+  \columnwidth=\dimexpr\textwidth+\marginparsep+\marginparwidth\relax
+  \list{}{\leftmargin\z@
+    \rightmargin-\dimexpr\marginparsep+\marginparwidth\relax}%
+  \item\relax}{\endlist}
+\makeatother
+\begin{document}
+\checknotepos{a}\checknotepos{b}
+\marginpar{\savenotepos{a}Note a must be in the margin.}
+\lipsum[1-2]
+\begingroup
+\columnwidth=\paperwidth
+\lipsum[3-12]
+\endgroup
+\clearpage
+\vspace*{\dimexpr\textheight-12\baselineskip}
+\begin{itemize}
+\item Item text\marginpar{\savenotepos{b}Note b must be in the margin.}
+  then
+  \par\blockmargin
+  \begin{widened}
+    \begin{tabular}{@{}p{.48\columnwidth}p{.48\columnwidth}@{}}
+      \lipsum[6-7] & \lipsum[8-9]
+    \end{tabular}
+  \end{widened}
+  \unblockmargin
+\item next
+\end{itemize}
+\end{document}
