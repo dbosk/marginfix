@@ -1,0 +1,103 @@
+% Which margin the notes go in: the one the class would use.  \sidecase
+% chooses the class and setting, as <class><sides>-<setting>:
+%
+%   mem2-right, mem2-left, mem2-outer, mem2-inner
+%       memoir, two-sided, \marginparmargin{...};
+%   mem2-default   memoir, two-sided, no \marginparmargin;
+%   mem1-right, mem1-left, mem1-inner
+%       memoir, one-sided, \marginparmargin{...};
+%   mem1-reverse   memoir, one-sided, \reversemarginpar;
+%   art2-default, art2-reverse, art1-reverse
+%       article, two- or one-sided, with or without \reversemarginpar.
+%
+% A note on each of pages 1 to 3 saves its position and the side it should
+% be on, so the check needs two runs: the second fails with an error if a
+% note is not in the margin it should be in.
+\ifdefined\sidecase\else\def\sidecase{mem2-right}\fi
+\def\sideclass#1#2#3#4-#5\relax{\def\sideclassname{#1}\def\sidesides{#4}%
+  \def\sidesetting{#5}}
+\expandafter\sideclass\sidecase\relax
+\def\memoirname{m}
+\def\twosided{2}
+\edef\sideoptions{a4paper,\ifx\sidesides\twosided two\else one\fi side}
+\ifx\sideclassname\memoirname
+  \expandafter\documentclass\expandafter[\sideoptions]{memoir}
+\else
+  \expandafter\documentclass\expandafter[\sideoptions]{article}
+\fi
+\usepackage{lipsum}
+\usepackage{marginfix}
+\makeatletter
+\def\reserved@a{reverse}
+\ifx\sidesetting\reserved@a
+  \reversemarginpar
+\else
+  \def\reserved@a{default}
+  \ifx\sidesetting\reserved@a\else
+    \expandafter\marginparmargin\expandafter{\sidesetting}
+  \fi
+\fi
+% The sides of pages 1, 2 and 3, L or R.
+\def\sideexpect#1{\csname side@\sidecase\endcsname#1}
+\def\side@set#1#2#3#4{\@namedef{side@#1}##1{\ifcase##1\or#2\or#3\or#4\fi}}
+\side@set{mem2-right}RRR
+\side@set{mem2-left}LLL
+\side@set{mem2-outer}RLR
+\side@set{mem2-inner}LRL
+\side@set{mem2-default}RLR
+\side@set{mem1-right}RRR
+\side@set{mem1-left}LLL
+\side@set{mem1-inner}RRR
+\side@set{mem1-reverse}LLL
+\side@set{art2-default}RLR
+\side@set{art2-reverse}LRL
+\side@set{art1-reverse}LLL
+% Written at shipout: the page and the left edge of the note.
+\newcommand\savenotepos{%
+  \pdfsavepos
+  \write\@auxout{\string\notepos{\the\c@page}{\the\pdflastxpos}}}
+\newcount\side@notes
+\def\notepos#1#2{%
+  \global\advance\side@notes\@ne
+  \dimen@\dimexpr1in+\hoffset\relax
+  \if@twoside
+    \ifodd#1\relax
+      \advance\dimen@\oddsidemargin
+    \else
+      \advance\dimen@\evensidemargin
+    \fi
+  \else
+    \advance\dimen@\oddsidemargin
+  \fi
+  \ifdim#2sp<\dimen@
+    \def\reserved@a{L}%
+  \else
+    \ifdim#2sp<\dimexpr\dimen@+\textwidth\relax
+      \def\reserved@a{text}%
+    \else
+      \def\reserved@a{R}%
+    \fi
+  \fi
+  \edef\reserved@b{\sideexpect{#1}}%
+  \ifx\reserved@a\reserved@b
+    \typeout{sidetest (\sidecase): page #1: \reserved@a}%
+  \else
+    \PackageError{sidetest}{The note on page #1 is in \reserved@a,
+      expected \reserved@b\space(\sidecase)}\@ehc
+  \fi}
+% The .aux file is read again at the end; check only once.
+\AtEndDocument{\let\notepos\@gobbletwo}
+\AtBeginDocument{%
+  \ifnum\side@notes=\z@
+    \typeout{sidetest (\sidecase): rerun to check}%
+  \else\ifnum\side@notes=\thr@@\else
+    \PackageError{sidetest}{\the\side@notes\space notes, expected 3}\@ehc
+  \fi\fi}
+\makeatother
+\begin{document}
+\lipsum[1]Text\marginpar{\savenotepos NOTE} here.
+\clearpage
+\lipsum[2]Text\marginpar{\savenotepos NOTE} here.
+\clearpage
+\lipsum[3]Text\marginpar{\savenotepos NOTE} here.
+\end{document}
