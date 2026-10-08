@@ -722,7 +722,8 @@
 % This is where ``keep notes on their anchor's page'' hooks in.  Every
 % real marginpar is given a sequential id (\cs{mfx@placeid}) matching the
 % id assigned at callout time (\cs{mfx@callid}); see \cs{mfx@anchorpage}.
-% If a previous run recorded the page of this note's anchor (its callout)
+% If a previous run recorded the page of this note's anchor (its callout,
+% found by the key the callout gave it)
 % and that page lies \emph{after} the page we are currently shipping, then
 % \cs{marginpar} drifted backwards across a page break: instead of setting
 % the note here we hold it in \cs{mfx@deferred} until its anchor page comes
@@ -730,13 +731,20 @@
 % run, or a brand-new note) we behave exactly as before.
 %    \begin{macrocode}
 \def\mfx@maybe@defer{%
-  \@ifundefined{mfx@ap@\the\mfx@placeid}%
-    {\mfx@place@now}%
-    {\ifnum\@nameuse{mfx@ap@\the\mfx@placeid}>\c@page
-       \mfx@defer@note
-     \else
-       \mfx@place@now
-     \fi}%
+  \expandafter\let\expandafter\mfx@key
+    \csname mfx@key@\the\mfx@placeid\endcsname
+  \global\expandafter\let\csname mfx@key@\the\mfx@placeid\endcsname\relax
+  \ifx\mfx@key\relax
+    \mfx@place@now
+  \else
+    \@ifundefined{mfx@ap@\mfx@key}%
+      {\mfx@place@now}%
+      {\ifnum\@nameuse{mfx@ap@\mfx@key}>\c@page
+         \mfx@defer@note
+       \else
+         \mfx@place@now
+       \fi}%
+  \fi
 }
 \def\mfx@place@now{%
   \MFX@cons\mfx@marginlist{%
@@ -747,7 +755,7 @@
 \def\mfx@defer@note{%
   \MFX@cons\mfx@deferred{%
     \noexpand\mfx@deferred@note\@currbox\@marbox
-      {\@nameuse{mfx@ap@\the\mfx@placeid}}%
+      {\@nameuse{mfx@ap@\mfx@key}}%
   }%
 }
 %    \end{macrocode}
@@ -858,9 +866,9 @@
 % forwards, but on its own it has no notion of which page a note ``belongs''
 % to, so it cannot repair this backwards drift.
 %
-% We fix it across two passes.  Each real marginpar is numbered in document
-% order, and at callout time we record the page of that callout in the
-% \texttt{.aux} file with a deferred \cs{write} (the same trick \cs{label}
+% We fix it across two passes.  Each real marginpar is named by where it is
+% in the source, and at callout time we record the page of that callout in
+% the \texttt{.aux} file with a deferred \cs{write} (the same trick \cs{label}
 % uses, so the page is captured at shipout).  On the next run that recorded
 % \emph{anchor page} lets \cs{@addmarginpar} recognise a note that would be
 % set too early and hold it back until its anchor page is shipped.  Because
@@ -873,6 +881,8 @@
 % Two counters number the marginpars: \cs{mfx@callid} at callout time and
 % \cs{mfx@placeid} in the output routine.  They stay in lock-step because
 % every real marginpar passes through each exactly once, in the same order.
+% They match a note to what we know about its callout within one run; across
+% runs, a note is known by its key (see \cs{mfx@anchorkey}).
 % \cs{ifmfx@in@inject} is true only while \cs{MFX@inject} fakes a
 % \cs{marginpar} for its own bookkeeping, so those are skipped.
 % \cs{mfx@deferred} holds notes waiting for their anchor page.
@@ -894,20 +904,60 @@
 %    \end{macrocode}
 % \end{macros}
 %
+% \begin{macros}{\mfx@anchorkey}
+% The anchor page of a note is recorded under a key that names the note in
+% the next run.  Its number in the document won't do: a note added or
+% removed before it, which is what a citation that becomes a footnote of its
+% own or reuses an earlier one does, gives every later note the number, and
+% so the anchor page, of its neighbour.  A note that takes the anchor page
+% of a later note is held back to that page, which moves the notes after it,
+% and so on, so the runs settle late.  So the key is the place in the
+% source where the note is called out: an MD5 sum of the file and line
+% (\cs{mfx@where}), and the number of the note among those called out from
+% that line.  Then adding or removing a note only changes the keys of the
+% notes after it on the same line, and editing a file only the keys of the
+% notes after the edit in that file; a key we don't know yet is a new note,
+% which is set as it comes.  We need \texttt{\textbackslash str\_mdfive\_hash:n} for the sum,
+% which \LaTeX\ has had since 2020; without it the key is the note's number,
+% as before.
+% It takes its argument as a string, unexpanded, so we expand the location
+% first.
+% \cs{mfx@anchorkey} sets \cs{mfx@key} to the key of the note being called
+% out.
+%    \begin{macrocode}
+\begingroup\expandafter\expandafter\expandafter\endgroup
+\expandafter\ifx\csname str_mdfive_hash:n\endcsname\relax
+  \def\mfx@anchorkey{\edef\mfx@key{\the\mfx@callid}}
+\else
+  \expandafter\let\expandafter\mfx@mdfive\csname str_mdfive_hash:n\endcsname
+  \def\mfx@anchorkey{%
+    \edef\mfx@key{\mfx@where}%
+    \edef\mfx@key{\expandafter\mfx@mdfive\expandafter{\mfx@key}}%
+    \@ifundefined{mfx@n@\mfx@key}%
+      {\global\@namedef{mfx@n@\mfx@key}{1}}%
+      {\expandafter\xdef\csname mfx@n@\mfx@key\endcsname{%
+         \the\numexpr\@nameuse{mfx@n@\mfx@key}+1\relax}}%
+    \edef\mfx@key{\mfx@key-\@nameuse{mfx@n@\mfx@key}}}
+\fi
+%    \end{macrocode}
+% \end{macros}
+%
 % \begin{macros}{\mfx@marginpar@callout}
 % Prepended to \cs{marginpar}, this numbers each real callout and records its
-% anchor page for the next run.  It also notes where in the source the
-% callout is and that a new note is about to be set; both are for deferrable
-% notes (section~\ref{sec:deferrable}).
+% anchor page for the next run, under its key.  It also notes where in the
+% source the callout is and that a new note is about to be set; both are for
+% deferrable notes (section~\ref{sec:deferrable}).
 %    \begin{macrocode}
 \def\mfx@marginpar@callout{%
   \ifmfx@in@inject\else
     \global\advance\mfx@callid\@ne
     \global\mfx@fresh@notetrue
     \expandafter\xdef\csname mfx@loc@\the\mfx@callid\endcsname{\mfx@where}%
+    \mfx@anchorkey
+    \expandafter\xdef\csname mfx@key@\the\mfx@callid\endcsname{\mfx@key}%
     \if@filesw
       \protected@write\@auxout{\let\mfx@cpage\relax}{%
-        \string\mfx@anchorpage{\the\mfx@callid}{\mfx@cpage}}%
+        \string\mfx@anchorpage{\mfx@key}{\mfx@cpage}}%
     \fi
   \fi
 }
@@ -917,7 +967,7 @@
 % \begin{macros}{\mfx@anchorpage}
 % This is what the \texttt{.aux} file calls back.  Normally (while the file
 % is read at \cs{begin}\texttt{\{document\}}) it just stores the anchor page
-% keyed by id.  During the kernel's end-of-run consistency check the aux is
+% under the note's key.  During the kernel's end-of-run consistency check the aux is
 % re-read with \cs{@newl@bel} \cs{let} to \cs{@testdef}; we detect that and,
 % if an anchor page is new or has changed, set \cs{@tempswa} so the kernel
 % issues its standard ``Label(s) may have changed.  Rerun'' warning---which
