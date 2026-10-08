@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3206}
+\CheckSum{3251}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -1913,6 +1913,24 @@
 \def\MFX@leftmargin{%
   00\fi % close out the \if
   \@tempcnta\@ne
+  \MFX@marginside
+%<debug>\MFX@debug{margin on \ifnum\@tempcnta<\z@ left\else right\fi}%
+  \ifnum\@tempcnta<\z@ % start a new \if
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@marginside,\MFX@marginside@memoir}
+% \changes{v1.2.1}{2026/10/08}
+%       {Put the notes in the margin that memoir's \cs{marginparmargin}
+%        chooses, instead of switching sides on even pages.}
+% \cs{MFX@marginside} sets |\@tempcnta| to $-1$ for the left margin of
+% the current page, and leaves it at $1$ for the right one.  In
+% {\LaTeX}, \cs{if@mparswitch} (set in two-sided documents) puts the notes
+% of even pages on the left, and \cs{if@reversemargin}
+% (\cs{reversemarginpar}) swaps the sides.
+%    \begin{macrocode}
+\def\MFX@marginside{%
   \if@mparswitch
     \unless\ifodd\c@page
       \@tempcnta\m@ne
@@ -1921,9 +1939,49 @@
   \if@reversemargin
     \@tempcnta-\@tempcnta
   \fi
-%<debug>\MFX@debug{margin on \ifnum\@tempcnta<\z@ left\else right\fi}%
-  \ifnum\@tempcnta<\z@ % start a new \if
 }
+%    \end{macrocode}
+% Memoir's \cs{marginparmargin}\marg{side} doesn't map onto those flags.
+% It sets \cs{ifm@msetmp}, and \cs{m@mmpar@margin} to 0, 1, 2 or 3 for
+% left, right, outer or inner, and memoir's \cs{@addmarginpar} then uses
+% that instead: left and right are the same on every page, even in a
+% two-sided document, and in a one-sided document everything but left
+% is right.  It still sets the flags, to \cs{@mparswitchtrue} in
+% two-sided documents, so with them we would put the notes of even pages
+% in the left margin for \texttt{right}, and on the left for
+% \texttt{inner} in a one-sided document.  So with memoir we follow its
+% own rule, as in its \cs{m@mwhich@margin}, but with the page counter
+% (as above) rather than its \cs{checkoddpage}, which may write to the
+% \texttt{.aux} file.
+%    \begin{macrocode}
+\def\MFX@marginside@memoir{%
+  \ifm@msetmp
+    \ifcase\m@mmpar@margin\relax
+      \@tempcnta\m@ne % left
+    \or               % right
+    \or               % outer
+      \if@twoside
+        \unless\ifodd\c@page
+          \@tempcnta\m@ne
+        \fi
+      \fi
+    \or               % inner
+      \if@twoside
+        \ifodd\c@page
+          \@tempcnta\m@ne
+        \fi
+      \fi
+    \fi
+  \else
+    \MFX@marginside@latex
+  \fi
+}
+\ifdefined\m@mwhich@margin
+  \ifdefined\m@mmpar@margin
+    \let\MFX@marginside@latex\MFX@marginside
+    \let\MFX@marginside\MFX@marginside@memoir
+  \fi
+\fi
 %    \end{macrocode}
 % \end{macros}
 %

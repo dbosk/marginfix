@@ -12,6 +12,10 @@ marginfix.pdf:marginfix.dtx
 
 .PHONY: test clean
 
+SIDE_CASES=mem2-right mem2-left mem2-outer mem2-inner mem2-default \
+	mem1-right mem1-left mem1-inner mem1-reverse \
+	art2-default art2-reverse art1-reverse
+
 SPLITRULES_JOBS=splitrules-within splitrules-beyond splitrules-write
 FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two topbot block split deferred lost
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
@@ -19,7 +23,8 @@ ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
 test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
-	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf
+	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
+	$(SIDE_CASES:%=side-%.pdf)
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
@@ -145,6 +150,15 @@ beamer-floats.pdf: marginfix.sty test/floats-beamer.tex
 # deferrable notes did.
 regress:marginfix.sty
 	test/regress.sh $(BASE)
+
+# Which margin the notes go in (test/side.tex), for each class and setting.
+# Two runs: the first saves where the notes end up, the second checks it.
+$(SIDE_CASES:%=side-%.pdf): side-%.pdf: marginfix.sty test/side.tex
+	for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode -jobname=side-$* \
+	    "\\def\\sidecase{$*}\\input{test/side}" >/dev/null \
+	  || { [ $$i = 1 ] || { grep -A3 '^!' side-$*.log; exit 1; }; }; done
+	@grep 'sidetest (' side-$*.log
 
 clean:
 	rm *.log *.aux *.pdf tufte.out marginfix.sty
