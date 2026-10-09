@@ -1,0 +1,56 @@
+% Test that a note is set on the page of its callout in the first run.
+%
+% The paragraph of five lines is unbreakable, and the filler before it is
+% measured so that only the paragraph's last line would overflow the first
+% page: LaTeX hands the note on line four to the first page, and then
+% breaks the page before the paragraph.  Up to v1.5 the first run set the
+% note on page 1 and the second run, from the anchor page in the .aux file,
+% moved it; now the marks in the page tell the first run.
+%
+% Two runs: the second checks, from the labels of the first, that the note
+% was set on the page of its callout.
+\documentclass{article}
+\usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\usepackage{marginfix}
+\pagestyle{empty}
+
+\makeatletter
+\providecommand\amrun{0}
+\AtBeginDocument{\if@filesw\immediate\write\@auxout{%
+  \gdef\string\amrun{\the\numexpr\amrun+1\relax}}\fi}
+% \ampage{<label>}: the page of a label, from the second field of \r@<label>
+\def\ampage#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax ??\else
+    \expandafter\expandafter\expandafter\am@page
+      \csname r@#1\endcsname\@nil\fi}
+\def\am@page#1#2#3\@nil{#2}
+% \fillwords{<n>}: n times twelve words of filler
+\newcommand{\fillwords}[1]{\count@=#1\relax
+  \loop\ifnum\count@>\z@ lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count@\m@ne\repeat}
+\makeatother
+
+\begin{document}
+Start. \fillwords{34}
+
+{\interlinepenalty=10000
+Line one of the straddling paragraph.\\
+Line two of the straddling paragraph.\\
+Line three of the straddling paragraph.\\
+Line four, with the callout\label{callout-D}\marginpar{D: its callout is on
+  this page.\label{note-D}} on it.\\
+Line five, the last; the paragraph is unbreakable.\par}
+
+\fillwords{40}
+
+\ifnum\amrun=1
+  \edef\callout{\ampage{callout-D}}\edef\note{\ampage{note-D}}%
+  \ifx\callout\note
+    \typeout{anchormarks test: note D on page \note, as its callout, in
+      the first run}%
+  \else
+    \PackageError{anchormarks test}{Note D on page \note, its callout on
+      page \callout, in the first run}{}%
+  \fi
+\fi
+\end{document}
