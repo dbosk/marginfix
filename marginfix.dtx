@@ -930,7 +930,7 @@
 %    \end{macrocode}
 % \end{macros}
 %
-% \begin{macros}{\mfx@lastcallout}
+% \begin{macros}{\mfx@lastcallout,\mfx@splitmarks}
 % Run at the start of every \cs{MFX@combinefloats@before}, when
 % \cs{@outputbox} holds the text of the page.  \cs{vsplit} of a copy, at a
 % height nothing exceeds, reads the marks in it into \cs{splitbotmarks},
@@ -939,20 +939,49 @@
 % \cs{botmarks} into \cs{topmarks}, so on a page without a callout
 % \cs{botmarks} would still name the last callout the output routine saw.
 % A page without a callout leaves \cs{mfx@lastid} as it was.
+%
+% We take the same care as the \LaTeX\ kernel's own mark extraction
+% (\texttt{ltmarks}).  \cs{vsplit} complains of glue that shrinks without
+% limit, and \pkg{longtable} ends a page broken inside a table with
+% \cs{vss}, so we take the glue off the end of the copy first; a trailing
+% box we take off too, and unpack it if it is all there is.  Should such
+% glue be left inside, the kernel's trick quiets the complaint: the
+% split runs in batch mode, and the height is a register whose name tells
+% the log what happened; the split goes on regardless.  \cs{interactionmode}
+% is always set globally, so we put it back by hand.  A split stops at a
+% forced break, so we split what is left again, until nothing is left.
 %    \begin{macrocode}
+\expandafter\let\csname Infinite shrink error above ignored!\endcsname
+  \maxdimen
 \def\mfx@lastcallout{%
   \ifvoid\@outputbox\else
     \begingroup
       \vbadness\@M \vfuzz\maxdimen
       \splittopskip\z@skip \splitmaxdepth\maxdimen
-      \setbox\z@\copy\@outputbox
-      \setbox\tw@\vsplit\z@ to\maxdimen
-      \edef\mfx@tmp{\splitbotmarks\mfx@marks}%
-      \ifx\mfx@tmp\@empty\else
-        \global\mfx@lastid\mfx@tmp\relax
-      \fi
+      \setbox\z@\vbox{\unvcopy\@outputbox
+        \unskip
+        \setbox\tw@\lastbox
+        \ifnum\lastnodetype<\z@ \ifvbox\tw@ \unvbox\tw@ \fi\fi}%
+      \loop
+        \mfx@splitmarks
+        \edef\mfx@tmp{\splitbotmarks\mfx@marks}%
+        \ifx\mfx@tmp\@empty\else
+          \global\mfx@lastid\mfx@tmp\relax
+        \fi
+      \unless\ifvoid\z@
+      \repeat
     \endgroup
   \fi
+}
+\def\mfx@splitmarks{%
+  \edef\mfx@tmp{\interactionmode\the\interactionmode\relax}%
+  \begingroup
+    \escapechar\m@ne
+    \interactionmode\z@
+    \setbox\tw@\vsplit\z@ to
+      \csname Infinite shrink error above ignored!\endcsname
+  \endgroup
+  \mfx@tmp
 }
 %    \end{macrocode}
 % \end{macros}
