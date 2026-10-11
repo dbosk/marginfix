@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchorkeys.pdf priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	$(SIDE_CASES:%=side-%.pdf)
@@ -61,6 +61,15 @@ columnwidth.pdf:marginfix.sty test/columnwidth.tex
 anchorpage.pdf:marginfix.sty test/anchorpage.tex
 	pdflatex test/anchorpage.tex
 	pdflatex test/anchorpage.tex
+
+# Three runs from no .aux: the second adds a note, the third checks the
+# placement in the second (see test/anchorkeys.tex).
+anchorkeys.pdf:marginfix.sty test/anchorkeys.tex
+	${RM} anchorkeys.aux
+	for i in 1 2 3; do \
+	  pdflatex -interaction=nonstopmode test/anchorkeys.tex >/dev/null \
+	  || { grep -A3 '^!' anchorkeys.log; exit 1; }; done
+	@grep 'anchorkeys test:' anchorkeys.log
 
 # Deferrable notes: each test in each mode, three passes, since the checks
 # (see test/prioritycheck.tex) read the pages from the previous run.  A

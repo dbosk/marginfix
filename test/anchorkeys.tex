@@ -1,0 +1,55 @@
+% Test that a note added between runs doesn't move the notes after it.
+%
+% The anchor page of a note is recorded in the .aux file and read in the
+% next run.  If it were recorded under the note's number in the document, a
+% note added in the second run (as when a citation becomes a footnote of
+% its own) would give note B the number, and so the anchor page, of note C,
+% which is called out on the next page, and B would be held back to that
+% page.  Recorded under the callout's place in the source, B keeps its own.
+%
+% Three runs: the first records the anchor pages without note X, the second
+% adds X, and the third checks, from the labels of the second, that note B
+% was set on the page of its callout.
+\documentclass{article}
+\usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\usepackage{marginfix}
+\usepackage{lipsum}
+
+\makeatletter
+\providecommand\akrun{0}
+\AtBeginDocument{\if@filesw\immediate\write\@auxout{%
+  \gdef\string\akrun{\the\numexpr\akrun+1\relax}}\fi}
+% \akpage{<label>}: the page of a label, from the second field of \r@<label>
+\def\akpage#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax ??\else
+    \expandafter\expandafter\expandafter\ak@page
+      \csname r@#1\endcsname\@nil\fi}
+\def\ak@page#1#2#3\@nil{#2}
+\makeatother
+
+\begin{document}
+\ifnum\akrun>0
+  Note X\marginpar{X: added in the second run.}
+  is only there from the second run on.
+\fi
+\lipsum[1-2]
+
+Note B\label{callout-B}\marginpar{B: its callout is on page 1.%
+  \label{note-B}}
+is called out on the first page.
+
+\lipsum[3-6]
+
+Note C\marginpar{C: its callout is on a later page.} is called out on a
+later page.
+
+\ifnum\akrun=2
+  \edef\callout{\akpage{callout-B}}\edef\note{\akpage{note-B}}%
+  \ifx\callout\note
+    \typeout{anchorkeys test: note B on page \note, as its callout}%
+  \else
+    \PackageError{anchorkeys test}{Note B on page \note, its callout on
+      page \callout}{}%
+  \fi
+\fi
+\end{document}
