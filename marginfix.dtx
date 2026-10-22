@@ -1399,7 +1399,7 @@
 %    \end{macrocode}
 % \end{macros}
 %
-% \begin{macros}{\MFX@fit@after,\MFX@fit@carried,\MFX@fit@spilled,
+% \begin{macros}{\MFX@fit@after,\MFX@fit@carried,\MFX@fit@record,\MFX@fit@spilled,
 %     \mfx@spills}
 % After the margin of a page is built, what is left in \cs{mfx@marginlist}
 % is carried to later pages.  For each ordinary note in it we note that it's
@@ -1407,6 +1407,11 @@
 % first time, the page it is carried from (\cs{mfx@sp@}\meta{box}); we keep
 % the carried notes in \cs{mfx@spills}.  The first such note in the mode
 % \texttt{break} is recorded in the \texttt{.aux} file for the next run.
+% We record it only if the previous run had its callout on this page too
+% (its anchor page, \cs{mfx@ap@}\meta{key}): in the first runs, before the
+% anchor pages have settled, notes may be set on the wrong page and crowd a
+% margin that they won't crowd once they have settled, and a record is
+% kept for good.  So it takes a run more.
 % Then each note in \cs{mfx@spills} that isn't carried any more has been set
 % on this page, and we log it.
 %    \begin{macrocode}
@@ -1441,16 +1446,22 @@
       \MFX@cons\mfx@spills{\noexpand\@elt{\number#1}}%
       \ifx\mfx@fit@recorded\@empty
         \expandafter\ifx\csname mfx@bo@\number#1\endcsname\MFX@break
-          \expandafter\ifx\csname mfx@bk@\number#1\endcsname\relax\else
-            \if@filesw
-              \immediate\write\@auxout{\string\mfx@yield
-                {\csname mfx@bk@\number#1\endcsname}}%
-            \fi
-            \gdef\mfx@fit@recorded{x}%
-          \fi
+          \MFX@fit@record{\csname mfx@bk@\number#1\endcsname}%
         \fi
       \fi
     \fi
+  \fi
+}
+\def\MFX@fit@record#1{%
+  \edef\reserved@a{#1}%
+  \ifx\reserved@a\@empty\else
+    \gdef\mfx@fit@recorded{x}%
+    \@ifundefined{mfx@ap@\reserved@a}{}{%
+      \ifnum\@nameuse{mfx@ap@\reserved@a}=\c@page
+        \if@filesw
+          \immediate\write\@auxout{\string\mfx@yield{\reserved@a}}%
+        \fi
+      \fi}%
   \fi
 }
 \def\MFX@fit@spilled#1{%
