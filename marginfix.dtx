@@ -15,7 +15,7 @@
            [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3729}
+\CheckSum{3735}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -105,6 +105,9 @@
 %        carrying the note to the next page; log the notes that are still
 %        carried (\texttt{marginfix-spill}) and warn about a page left
 %        mostly empty.}
+% \changes{v1.6}{2026/10/22}
+%       {(Daniel Bosk) Don't add a place to break the page after a line that
+%        calls out a note: the paragraph's own penalties decide.}
 % \changes{v1.6}{2026/10/22}
 %       {(Daniel Bosk) Keep the margin beside a float placed in the text
 %        empty when it has a side caption or says
@@ -772,6 +775,19 @@
 % (e.g. from pdf\TeX), we still might as well do this in the OR.
 % In addition to actually setting the margin note, we also use this
 % routine to inject arbitrary code into the OR (see \cs{MFX@inject}).
+%
+% After a note called out in a paragraph (\cs{outputpenalty} $-10\,002$),
+% the kernel's \cs{@specialoutput} adds \cs{interlinepenalty}, a place
+% where the page may break, to the lines it gives back (unless
+% \cs{if@nobreak}).  The paragraph has a penalty of its own after the line,
+% with its club and widow penalties, which this one goes before, so every
+% line with a margin note could end a page whatever its paragraph's
+% penalties say: a note in the first line of a paragraph leaves it alone at
+% the foot of a page, however high the club penalty.  We set
+% \cs{outputpenalty} to zero, as the kernel does after a float in the
+% text, so that no penalty is added and the paragraph's own decide.  A note
+% called out between paragraphs ($-10\,003$) keeps the penalty, which stands
+% in for the place to break that the note took.
 %    \begin{macrocode}
 \def\@addmarginpar{%
   \@next\@marbox\@currlist{}\MFX@AssertionError
@@ -786,6 +802,9 @@
     \mfx@note@locate
     \MFX@fit@note
     \mfx@maybe@defer
+  \fi
+  \ifnum\outputpenalty=-\@Mii
+    \outputpenalty\z@
   \fi
 %<debug>\MFX@debug{addmarginpar (exit): marginlist=\MFX@mac\mfx@marginlist}%
 }
