@@ -12,10 +12,10 @@
 %
 %<package>\NeedsTeXFormat{LaTeX2e}
 %<package>\ProvidesPackage{marginfix}%
-           [2026/10/02 v1.5 Fix Margin Paragraphs]
+           [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3274}
+\CheckSum{3719}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -98,6 +98,17 @@
 %       {(Daniel Bosk) Record anchor pages under the callout's place in the
 %        source, not the note's number, so that adding or removing a note
 %        doesn't give the notes after it their neighbours' anchor pages.}
+% \changes{v1.6}{2026/10/22}
+%       {(Daniel Bosk) Add \cs{marginnoteoverflow}: with \texttt{break},
+%        when an ordinary note doesn't fit on the page of its callout, end
+%        that page before the callout's line in the next run, instead of
+%        carrying the note to the next page; log the notes that are still
+%        carried (\texttt{marginfix-spill}) and warn about a page left
+%        mostly empty.}
+% \changes{v1.6}{2026/10/22}
+%       {(Daniel Bosk) Keep the margin beside a float placed in the text
+%        empty when it has a side caption or says
+%        \cs{marginnotereservefloat}.}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -323,6 +334,57 @@
 % a \cs{setlength} in a group is forgotten at its end and may or may not be
 % in force when the page is built.
 %
+% \section{Notes that don't fit on their page}
+% \label{sec:overflow}
+% When the ordinary notes of a page alone don't fit in its margin, say a
+% paragraph with many citations set as footnotes in the margin, the first
+% note that doesn't fit moves to the next page, and every note after it,
+% away from their marks.  Moving or splitting deferrable notes can't help
+% then.  What can is to let the text give way: end the page before the
+% line that calls out the first note that doesn't fit, so that the line,
+% and its note, start the next page.
+%
+% \DescribeMacro{\marginnoteoverflow}
+% \cs{marginnoteoverflow}\marg{mode} says what happens to an ordinary note
+% that doesn't fit on the page of its callout:
+% \begin{description}
+% \item[\texttt{carry}] (the default) The note is carried to the next page
+%   that has room, as it always has been.
+% \item[\texttt{break}] The page ends before the line of the note's callout.
+%   Since we know that a note doesn't fit only when the page is built, this
+%   takes a run: the run that finds it records the note in the
+%   \texttt{.aux} file, under the key of its callout (see
+%   section~\ref{sec:anchor}), and asks for another run; in that run the
+%   callout ends the page before its line, with a \cs{vadjust pre}, which
+%   needs pdf\TeX\ or Lua\TeX.  A break at the top of a page does nothing,
+%   so a note that doesn't fit even at the top of a page is carried as
+%   before.
+% \end{description}
+% The mode counts where the note is called out, not where the page is
+% built, and it obeys groups.  So \cs{marginnoteoverflow}|{break}| in the
+% preamble sets it for the document, and |{\marginnoteoverflow{carry}| ...|}|
+% or the same in an environment lets the notes of one passage, say an
+% appendix dense with citations, go to the next page as before.
+%
+% The page that ends early is shorter than the others, but its margin is
+% full.  If its text fills less than half of the page we warn, naming the
+% page; and in any case we write a line
+% |marginfix-yield: page=|\meta{page}| before=|\meta{file}|:|\meta{line}
+% to the log.
+% The record of a note stays as long as its callout keeps its key, that is,
+% until the source before it in the same file changes; so a page may keep
+% ending early after a change that made it unnecessary, until such an edit
+% or a run without the \texttt{.aux} file.
+%
+% Every ordinary note that is still carried to a later page is logged when
+% it is set, one line each:
+% |marginfix-spill: page=|\meta{page of the callout}| to=|\meta{page of the
+% note}| |\meta{why}, where \meta{why} is \texttt{intended} for a note in
+% the mode \texttt{carry} and \texttt{unresolved} for one in the mode
+% \texttt{break} that didn't fit even so (or in the first run).  A script
+% that checks that notes stay on the page of their marks can accept the
+% intended ones.
+%
 % \section{Notes beside floats}
 % \label{sec:floats}
 % marginfix sets notes only in the margin beside the text of a page, not
@@ -364,11 +426,18 @@
 % which any of these sticks out into the margin goes unnoticed; write
 % \cs{marginnotereservefloat} in it to keep the margin beside it empty.
 % It applies to the float it is in, and only does anything with
-% \cs{marginnotebesidefloats}\texttt{\{use\}}; outside a float it warns.
+% \cs{marginnotebesidefloats}\texttt{\{use\}}, or when the float is placed
+% in the text; outside a float it warns.
 % (Used where \cs{@captype} is defined but there is no float, such as a
 % minipage that fakes one for \cs{caption}, it, or a side caption, marks
 % some unrelated box register instead.  That does no harm: a mark only
 % ever reserves margin, and it is cleared when the next float starts.)
+%
+% A float placed in the text, with the placement \texttt{h}, keeps the
+% margin beside it empty if it has a side caption or says
+% \cs{marginnotereservefloat}, whatever the mode, so that a note called out
+% near it is set above or below it and not under the caption.  Otherwise
+% notes may go beside it, as before.
 %
 % With \cs{raggedbottom} the bottom floats sit right below the text rather
 % than at the bottom of the page.  The notes may then also go beside the
@@ -715,6 +784,7 @@
   \else
     \global\advance\mfx@placeid\@ne
     \mfx@note@locate
+    \MFX@fit@note
     \mfx@maybe@defer
   \fi
 %<debug>\MFX@debug{addmarginpar (exit): marginlist=\MFX@mac\mfx@marginlist}%
@@ -862,6 +932,7 @@
 % \end{macros}
 %
 % \section{Keeping notes on their anchor's page}
+% \label{sec:anchor}
 % A \cs{marginpar} is a float, and \LaTeX{} can attach it to the page it is
 % busy assembling even when the page eventually breaks \emph{before} the line
 % that called it---so a note whose callout sits at the top of a page can be
@@ -950,7 +1021,9 @@
 % Prepended to \cs{marginpar}, this numbers each real callout and records its
 % anchor page for the next run, under its key.  It also notes where in the
 % source the callout is and that a new note is about to be set; both are for
-% deferrable notes (section~\ref{sec:deferrable}).
+% deferrable notes (section~\ref{sec:deferrable}).  And it notes the mode of
+% \cs{marginnoteoverflow}, and ends the page here if a previous run asked
+% for it (\cs{MFX@fit@callout}, section~\ref{sec:overflow@impl}).
 %    \begin{macrocode}
 \def\mfx@marginpar@callout{%
   \ifmfx@in@inject\else
@@ -959,6 +1032,7 @@
     \expandafter\xdef\csname mfx@loc@\the\mfx@callid\endcsname{\mfx@where}%
     \mfx@anchorkey
     \expandafter\xdef\csname mfx@key@\the\mfx@callid\endcsname{\mfx@key}%
+    \MFX@fit@callout
     \if@filesw
       \protected@write\@auxout{\let\mfx@cpage\relax}{%
         \string\mfx@anchorpage{\mfx@key}{\mfx@cpage}}%
@@ -1186,6 +1260,212 @@
 %    \end{macrocode}
 % \end{macros}
 %
+% \section{Notes that don't fit: the text gives way}
+% \label{sec:overflow@impl}
+% With \cs{marginnoteoverflow}|{break}| (section~\ref{sec:overflow}), an
+% ordinary note that doesn't fit on the page of its callout makes that page
+% end before the callout's line in the next run.  The run that finds the
+% note can't move the line any more: the page has been built.  So it
+% records the note's key in the \texttt{.aux} file, and in the next run the
+% callout with that key breaks the page.  This is the one place where
+% margin notes change the page breaks of the text, which changes the anchor
+% pages of the notes after it, so it takes the runs that those need too.
+%
+% It settles, without going back and forth: a recorded note is recorded
+% again by the callout that breaks for it, so the break stays as long as the
+% callout has the same key, and the breaks only add up.  A break that turns
+% out not to be needed (a later run sees the note at the top of its page
+% anyway) does nothing, since \TeX\ drops a penalty at the top of a page.
+%
+% \begin{macros}{\MFX@fit@note}
+% In the output routine, when a note arrives, we copy what we know of its
+% callout to names under its box, which stays the same while the note is
+% carried from page to page: its key (\cs{mfx@bk@}\meta{box}) and its mode
+% (\cs{mfx@bo@}\meta{box}); and we forget the page that a note in the same
+% box was first carried from (\cs{mfx@sp@}\meta{box}), since the box is
+% used for a new note now.
+%    \begin{macrocode}
+\def\MFX@fit@note{%
+  \expandafter\let\expandafter\reserved@a
+    \csname mfx@key@\the\mfx@placeid\endcsname
+  \expandafter\global\expandafter\let
+    \csname mfx@bk@\number\@currbox\endcsname\reserved@a
+  \expandafter\let\expandafter\reserved@a
+    \csname mfx@co@\the\mfx@placeid\endcsname
+  \expandafter\global\expandafter\let
+    \csname mfx@bo@\number\@currbox\endcsname\reserved@a
+  \expandafter\global\expandafter\let
+    \csname mfx@co@\the\mfx@placeid\endcsname\relax
+  \expandafter\global\expandafter\let
+    \csname mfx@sp@\number\@currbox\endcsname\relax
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@fit@callout,\mfx@yield}
+% At callout time we keep the mode under the note's number
+% (\cs{mfx@co@}\meta{number}), and if the mode is \texttt{break} and a
+% previous run recorded the note, we end the page here and record the note
+% again.  The record in the \texttt{.aux} file is \cs{mfx@yield}\marg{key}.
+% Read at the start of the run, it defines |\mfx@y@|\meta{key}.  In the
+% kernel's check at the end of the run (as for \cs{mfx@anchorpage}), a key
+% that wasn't known at the start asks for another run.
+%    \begin{macrocode}
+\def\MFX@fit@callout{%
+  \expandafter\xdef\csname mfx@co@\the\mfx@callid\endcsname{\mfx@overflow}%
+  \ifx\mfx@overflow\MFX@break
+    \@ifundefined{mfx@y@\mfx@key}{}{\MFX@yield}%
+  \fi
+}
+\def\mfx@yield#1{%
+  \ifx\@newl@bel\@testdef
+    \@ifundefined{mfx@y@#1}{\@tempswatrue}{}%
+  \else
+    \global\@namedef{mfx@y@#1}{}%
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@yield,\MFX@yield@break,\Mfx@yield@count,
+%     \MFX@yield@base,\MFX@vadjustpre}
+% To end the page before the current line we put a penalty of $-10\,000$
+% before it with pdf\TeX's or Lua\TeX's \cs{vadjust pre}.  In vertical mode
+% (a note called out between paragraphs) the penalty goes right here.
+% Before the penalty we put two kerns that cancel each other, the second
+% $10^6+n$\,sp for the $n$th break: when the page is built, it ends with that
+% kern, which tells \cs{MFX@fit@page} that it ended here and where the
+% callout was (\cs{mfx@yl@}\meta{n}).  Kerns change no size and are dropped
+% at the top of a page with the penalty, so a break that does nothing leaves
+% no trace.
+%    \begin{macrocode}
+\newcount\Mfx@yield@count
+\def\MFX@yield@base{1000000}
+\ifdefined\pdftexversion
+  \def\MFX@vadjustpre#1{\vadjust pre{#1}}
+\else\ifdefined\directlua
+  \def\MFX@vadjustpre#1{\vadjust pre{#1}}
+\else
+  \def\MFX@vadjustpre#1{%
+    \PackageWarning{marginfix}{\string\marginnoteoverflow{break} needs
+      pdfTeX or LuaTeX;\MessageBreak this note is carried instead}}
+\fi\fi
+\def\MFX@yield{%
+  \global\advance\Mfx@yield@count\@ne
+  \expandafter\xdef\csname mfx@yl@\the\Mfx@yield@count\endcsname{%
+    \mfx@where}%
+  \if@filesw
+    \immediate\write\@auxout{\string\mfx@yield{\mfx@key}}%
+  \fi
+  \ifvmode
+    \MFX@yield@break
+  \else
+    \ifinner\else
+      \MFX@vadjustpre{\MFX@yield@break}%
+    \fi
+  \fi
+}
+\def\MFX@yield@break{%
+  \kern-\numexpr\MFX@yield@base+\Mfx@yield@count\relax sp%
+  \kern\numexpr\MFX@yield@base+\Mfx@yield@count\relax sp%
+  \penalty-\@M
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@fit@page}
+% Before the margin of a page is built, we look at the end of its text: if
+% it ends with one of our kerns, the page ended for a note, and we say so in
+% the log, and warn if its text fills less than half of the room.
+%    \begin{macrocode}
+\def\MFX@fit@page{%
+  \setbox\@tempboxa\vbox{%
+    \unvcopy\@outputbox
+    \xdef\mfx@fit@lastkern{\number\lastkern}}%
+  \ifnum\mfx@fit@lastkern>\MFX@yield@base\relax
+    \count@\numexpr\mfx@fit@lastkern-\MFX@yield@base\relax
+    \wlog{marginfix-yield: page=\the\c@page\space
+      before=\csname mfx@yl@\the\count@\endcsname}%
+    \ifdim\ht\@tempboxa<.5\@colroom
+      \PackageWarningNoLine{marginfix}{Page \the\c@page\space ends early, so
+        that the margin note\MessageBreak called out at
+        \csname mfx@yl@\the\count@\endcsname\space starts the next
+        page;\MessageBreak its text fills only
+        \the\numexpr100*\ht\@tempboxa/\@colroom\relax\@percentchar\space
+        of the page}%
+    \fi
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@fit@after,\MFX@fit@carried,\MFX@fit@spilled,
+%     \mfx@spills}
+% After the margin of a page is built, what is left in \cs{mfx@marginlist}
+% is carried to later pages.  For each ordinary note in it we note that it's
+% still carried (\cs{mfx@still@}\meta{box}), and if it's carried for the
+% first time, the page it is carried from (\cs{mfx@sp@}\meta{box}); we keep
+% the carried notes in \cs{mfx@spills}.  The first such note in the mode
+% \texttt{break} is recorded in the \texttt{.aux} file for the next run.
+% Then each note in \cs{mfx@spills} that isn't carried any more has been set
+% on this page, and we log it.
+%    \begin{macrocode}
+\let\mfx@spills\@empty
+\def\MFX@fit@after{%
+  \global\let\mfx@fit@recorded\@empty
+  \begingroup
+    \def\mfx@build@note##1##2##3{\MFX@fit@carried##1}%
+    \let\mfx@build@skip\@gobble
+    \let\mfx@build@clear\relax
+    \mfx@marginlist
+  \endgroup
+  \let\mfx@spills@kept\@empty
+  \def\@elt##1{%
+    \expandafter\ifx\csname mfx@still@##1\endcsname\relax
+      \MFX@fit@spilled{##1}%
+    \else
+      \expandafter\global\expandafter\let
+        \csname mfx@still@##1\endcsname\relax
+      \MFX@cons\mfx@spills@kept{\noexpand\@elt{##1}}%
+    \fi}%
+  \mfx@spills
+  \let\@elt\relax
+  \global\let\mfx@spills\mfx@spills@kept
+}
+\def\MFX@fit@carried#1{%
+  \MFX@islow#1%
+  \if@tempswa\else
+    \expandafter\gdef\csname mfx@still@\number#1\endcsname{}%
+    \expandafter\ifx\csname mfx@sp@\number#1\endcsname\relax
+      \expandafter\xdef\csname mfx@sp@\number#1\endcsname{\the\c@page}%
+      \MFX@cons\mfx@spills{\noexpand\@elt{\number#1}}%
+      \ifx\mfx@fit@recorded\@empty
+        \expandafter\ifx\csname mfx@bo@\number#1\endcsname\MFX@break
+          \expandafter\ifx\csname mfx@bk@\number#1\endcsname\relax\else
+            \if@filesw
+              \immediate\write\@auxout{\string\mfx@yield
+                {\csname mfx@bk@\number#1\endcsname}}%
+            \fi
+            \gdef\mfx@fit@recorded{x}%
+          \fi
+        \fi
+      \fi
+    \fi
+  \fi
+}
+\def\MFX@fit@spilled#1{%
+  \expandafter\ifx\csname mfx@bo@#1\endcsname\MFX@break
+    \def\reserved@a{unresolved}%
+  \else
+    \def\reserved@a{intended}%
+  \fi
+  \wlog{marginfix-spill: page=\csname mfx@sp@#1\endcsname\space
+    to=\the\c@page\space\reserved@a}%
+  \expandafter\global\expandafter\let\csname mfx@sp@#1\endcsname\relax
+}
+%    \end{macrocode}
+% \end{macros}
+%
 % \section{Shipout-time patches}
 % \begin{macros}{\@combinefloats}
 % We need to patch in somewhere before \cs{@combinefloats} at the latest,
@@ -1219,11 +1499,15 @@
 % before building the margin, and then reset it back to zero at the end.
 % This allows any calls to \cs{extendmargin} during the page itself to
 % work as expected.
+% Before and after building the margin we look at notes that don't fit
+% (\cs{MFX@fit@page} and \cs{MFX@fit@after}, section~\ref{sec:overflow@impl}).
 %    \begin{macrocode}
 \def\MFX@combinefloats@before{%
   \advance\Mfx@marginheight\marginheightadjustment
+  \MFX@fit@page
   \mfx@release@deferred
   \MFX@buildmargin
+  \MFX@fit@after
   \MFX@attachmargin
   \global\Mfx@marginheight\z@
 }
@@ -1730,6 +2014,53 @@
   \AddToHook{env/sidelegend/begin}{\MFX@reservefloat}
   \AddToHook{env/sidenamedlegend/begin}{\MFX@reservefloat}
 \fi
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\@addtocurcol,\MFX@reserve@midfloat}
+% A float placed in the text (\texttt{h}) is put on the page by the
+% kernel's \cs{@addtocurcol}, in the output routine, after the text so far:
+% \cs{intextsep}, the float and \cs{intextsep}.  The notes don't know about
+% it, and one called out after it on a full page may be pushed up beside
+% it.  That is harmless beside a float within the text, but a side caption
+% sits there.  So when \cs{@addtocurcol} puts a float in the text, which we
+% see from \cs{@midlist} growing, and the float is marked as reaching into
+% the margin (a side caption or \cs{marginnotereservefloat}, the marks we
+% use for the floats at the bottom, \cs{mfx@wide@}\meta{box}), we block the
+% margin beside it, as \cs{blockmargin} and \cs{unblockmargin} around it
+% would: the free piece of margin so far ends where the float starts, and
+% the next one starts where it ends.  Positions on the page are measured
+% from the top of the text, as for the notes (\cs{MFX@getypos}).  If the
+% margin is blocked there already, there is nothing to do.  We don't look
+% at the lines of the float, as for the bottom floats in the mode
+% \texttt{use}: there we can rely on the penalties put into the float in
+% that mode, here not.  The kernel may change \cs{@addtocurcol} in later
+% versions, and other packages may change it, so we wrap whatever is there
+% at the beginning of the document.
+%    \begin{macrocode}
+\AtBeginDocument{%
+  \let\MFX@orig@addtocurcol\@addtocurcol
+  \def\@addtocurcol{%
+    \let\mfx@midlist@before\@midlist
+    \edef\mfx@float@y{\the\dimexpr\@pageht+\@pagedp\relax}%
+    \edef\mfx@float@h{%
+      \the\dimexpr\ht\@currbox+\dp\@currbox+2\intextsep\relax}%
+    \edef\mfx@float@box{\number\@currbox}%
+    \MFX@orig@addtocurcol
+    \ifx\@midlist\mfx@midlist@before\else
+      \MFX@reserve@midfloat
+    \fi}%
+}
+\def\MFX@reserve@midfloat{%
+  \expandafter\ifx\csname mfx@wide@\mfx@float@box\endcsname\relax\else
+    \ifx\mfx@marginstart\relax\else
+      \MFX@cons\mfx@marginpieces{%
+        \noexpand\@elt{\mfx@marginstart}{\mfx@float@y}}%
+      \xdef\mfx@marginstart{\the\dimexpr\mfx@float@y+\mfx@float@h\relax}%
+      \global\advance\Mfx@piece@count\@ne
+    \fi
+  \fi
+}
 %    \end{macrocode}
 % \end{macros}
 %
@@ -3409,6 +3740,27 @@
     {\PackageError{marginfix}{Unknown mode `#1' beside floats}%
        {Use reserve or use.}}%
     {\xdef\mfx@besidefloats{#1}}%
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\marginnoteoverflow,\mfx@overflow}
+% Unlike the other modes, this one is local: it is read where a note is
+% called out, so it can be set for a passage in a group.
+%    \begin{macrocode}
+\def\MFX@break{break}
+\def\MFX@carry{carry}
+\let\mfx@overflow\MFX@carry
+\def\marginnoteoverflow#1{%
+  \edef\reserved@a{#1}%
+  \ifx\reserved@a\MFX@break
+    \let\mfx@overflow\MFX@break
+  \else\ifx\reserved@a\MFX@carry
+    \let\mfx@overflow\MFX@carry
+  \else
+    \PackageError{marginfix}{Unknown mode `#1' for notes that don't fit}%
+      {Use break or carry.}%
+  \fi\fi
 }
 %    \end{macrocode}
 % \end{macros}
