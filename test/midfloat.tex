@@ -3,6 +3,9 @@
 % on a full page isn't pushed up under the caption.  The caption's words
 % start with "cap", the note's with "note"; test/midfloatcheck.sh checks
 % that they don't share any height on the page.
+% It tests a change of the default layout (v1.6), so the regression test
+% skips it.
+% regress: skip
 \documentclass[a4paper]{memoir}
 \usepackage{lipsum}
 \usepackage{marginfix}
