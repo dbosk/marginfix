@@ -13,6 +13,11 @@
 %          each early end is logged as "marginfix-yield: ...";
 %   local  break in the preamble, but the paragraph in a group with
 %          \marginnoteoverflow{carry}: as carry.
+%   cap    break with \marginnoteyieldlimit{10\baselineskip}: the first
+%          page ends a few lines early and keeps its break, the second
+%          would end after a few lines, so after the runs settle it
+%          doesn't, and its notes are carried, logged as
+%          "marginfix-spill: ... capped" (none intended or unresolved).
 %
 % test/overflowcheck.sh runs each case and checks the log and that the
 % runs settle.
@@ -20,8 +25,10 @@
 \usepackage{lipsum}
 \usepackage{marginfix}
 \footnotesinmargin
-\def\breakcase{break}\def\localcase{local}
+\def\breakcase{break}\def\localcase{local}\def\capcase{cap}
 \ifx\overflowcase\breakcase\marginnoteoverflow{break}\fi
+\ifx\overflowcase\capcase
+  \marginnoteoverflow{break}\marginnoteyieldlimit{10\baselineskip}\fi
 \ifx\overflowcase\localcase\marginnoteoverflow{break}\fi
 \newcommand\fn[1]{\footnote{#1 \lipsum[1][1-6]}}
 \begin{document}
