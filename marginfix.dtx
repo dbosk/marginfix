@@ -438,9 +438,11 @@
 % |marginfix-spill: page=|\meta{page}| to=|\meta{page}| capped|, and in
 % the run that finds it, a line
 % |marginfix-yield: page=|\meta{page}| leaves |\meta{length}| empty|\dots
-% A later page may be more than one page on, and carried notes come after
-% the notes that a page's own text calls out, so a capped note can be set
-% after a note that follows it in the text.
+% A later page may be more than one page on.  There the carried notes come
+% in their order, ahead of the notes called out further down that page, but
+% after a note called out at its very top, which the output routine saw
+% before it built the page before (\cs{mfx@release@deferred}).  So a capped
+% note can be set after a note that follows it in the text.
 %
 % \section{Notes beside floats}
 % \label{sec:floats}
