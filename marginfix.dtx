@@ -15,7 +15,7 @@
            [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3994}
+\CheckSum{4009}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -115,9 +115,9 @@
 % \changes{v1.6}{2026/10/23}
 %       {(Daniel Bosk) Add \cs{marginnoteyieldlimit}: a page that would
 %        end early for a note, leaving more than the limit empty, doesn't;
-%        the note is carried and logged as \texttt{capped}.  Decided from
-%        the height of the note's callout when the note is found not to
-%        fit, and checked again when a page ends early.}
+%        the note is carried, logged as \texttt{capped} and warned about.
+%        Decided from the height of the note's callout when the note is
+%        found not to fit, and checked again when a page ends early.}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -418,13 +418,21 @@
 % long as the callout keeps its key, so the runs settle.  The
 % other notes called out on that page are capped with it, since without the
 % break one of them may be the first that doesn't fit, and ending the page
-% before its line would leave even more empty.  We log such a note as
-% \texttt{capped}:
+% before its line would leave even more empty.
+%
+% A capped note is no longer beside its mark, so when it is set, we warn:
+% \begin{quote}
+% The margin note called out at \meta{file}:\meta{line}\\
+% on page \meta{page} is set on page \meta{page}:\\
+% \cs{marginnoteyieldlimit} keeps page \meta{page} from ending early for it.
+% \end{quote}
+% We also log it as \texttt{capped}:
 % |marginfix-spill: page=|\meta{page}| to=|\meta{page}| capped|, and in
 % the run that finds it, a line
 % |marginfix-yield: page=|\meta{page}| leaves |\meta{length}| empty|\dots
-% A checker can treat a capped note as accepted, but worth a look: the
-% note is no longer beside its mark.
+% A later page may be more than one page on, and carried notes come after
+% the notes that a page's own text calls out, so a capped note can be set
+% after a note that follows it in the text.
 %
 % \section{Notes beside floats}
 % \label{sec:floats}
@@ -1579,7 +1587,9 @@
 % \cs{mfx@noyield}, so that it doesn't end its page in later runs either.
 % Then each note in \cs{mfx@spills} that isn't carried any more has been set
 % on this page, and we log it: as \texttt{capped} if the limit kept its page
-% from ending early (\cs{mfx@bc@}\meta{box}).
+% from ending early (\cs{mfx@bc@}\meta{box}).  Such a note we warn about too,
+% since nothing else tells the author that it has left its mark: the choice
+% to leave the page full is the limit's, not the author's.
 %    \begin{macrocode}
 \let\mfx@spills\@empty
 \def\MFX@fit@after{%
@@ -1678,6 +1688,12 @@
       \def\reserved@a{unresolved}%
     \else
       \def\reserved@a{capped}%
+      \PackageWarningNoLine{marginfix}{The margin note called out at
+        \MFX@loc{#1}\MessageBreak
+        on page \csname mfx@sp@#1\endcsname\space is set on page
+        \the\c@page:\MessageBreak
+        \string\marginnoteyieldlimit\space keeps page
+        \csname mfx@sp@#1\endcsname\space from ending early for it}%
     \fi
   \else
     \def\reserved@a{intended}%

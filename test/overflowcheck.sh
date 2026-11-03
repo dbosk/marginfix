@@ -5,8 +5,8 @@
 # checked:
 #   carry, local  notes carried and logged as intended, no early page end;
 #   break         no note carried, at least one early page end;
-#   cap           notes carried and logged as capped, and at least one
-#                 early page end that stays.
+#   cap           notes carried and logged as capped, each with a warning,
+#                 and at least one early page end that stays.
 #
 # Usage (from the repository root, after make marginfix.sty):
 #   test/overflowcheck.sh
@@ -38,14 +38,17 @@ for c in carry break local cap; do
   esac
   case $c in
     cap)
+      warnings=$(grep -c 'keeps page [0-9]* from ending early' "$log")
       if [ "$capped" -gt 0 ] && [ "$intended$unresolved" = 00 ] \
-         && [ "$yields" -gt 0 ]
+         && [ "$yields" -gt 0 ] && [ "$warnings" = "$capped" ] \
+         && grep -q '^Package marginfix Warning: .* note called out at' "$log"
       then
-        echo "as expected: $c ($capped notes carried, capped;" \
-          "$yields early page ends; settled after $i runs)"
+        echo "as expected: $c ($capped notes carried, capped, each with a" \
+          "warning; $yields early page ends; settled after $i runs)"
       else
         echo "UNEXPECTED:  $c (spills: $capped capped, $intended" \
-          "intended, $unresolved unresolved; early ends: $yields)"; status=1
+          "intended, $unresolved unresolved; early ends: $yields;" \
+          "warnings: $warnings)"; status=1
       fi;;
     break)
       if [ "$intended$unresolved$capped" = 000 ] && [ "$yields" -gt 0 ]
