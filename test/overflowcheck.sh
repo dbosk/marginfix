@@ -117,6 +117,46 @@ cap warmdown \def\overflowcase{cap}\def\overflowgap{15}
 capdown warmup \def\overflowcase{cap}
 CASES
 
+# An .aux file from before the rooms were recorded has \mfx@noyield{<key>},
+# with no room to test: that must be read without an error and change nothing.
+sed -E 's/\\mfx@noyield(at|firm)\{([^}]*)\}\{[^}]*\}/\\mfx@noyield{\2}/' \
+  "$tmp/cap.aux" > "$tmp/warmold.aux"
+grep -q '^\\mfx@noyield{' "$tmp/warmold.aux" \
+  || { echo "UNEXPECTED:  warmold (no old record in the .aux file)"; status=1; }
+# The first run is the only one that reads them, so look at its log.
+TEXINPUTS=".//:" pdflatex -interaction=nonstopmode -output-directory="$tmp" \
+  -jobname=warmold '\def\overflowcase{cap}\input{test/overflow}' \
+  > /dev/null 2>&1
+olderrors=$(grep -c '^!' "$tmp/warmold.log")
+settle warmold '\def\overflowcase{cap}'
+settle ref '\def\overflowcase{cap}'
+if [ "$olderrors" = 0 ] \
+   && diff <(grep '^marginfix-\(spill\|yield\)' "$tmp/warmold.log") \
+           <(grep '^marginfix-\(spill\|yield\)' "$tmp/ref.log") >/dev/null \
+   && diff <(pdftotext -layout "$tmp/warmold.pdf" -) \
+           <(pdftotext -layout "$tmp/ref.pdf" -) >/dev/null
+then
+  echo "as expected: warmold (old records ignored; settled after $i runs)"
+else
+  echo "UNEXPECTED:  warmold (differs from no .aux, or errors)"; status=1
+fi
+rm -f "$tmp"/ref.*
+
+# A record that changes whether its note is held must ask for another run:
+# the break's .aux file under a limit, where the page that ends early gets a
+# record, whatever else the run writes.
+cp "$tmp/break.aux" "$tmp/askrun.aux"
+TEXINPUTS=".//:" pdflatex -interaction=nonstopmode -output-directory="$tmp" \
+  -jobname=askrun '\def\overflowcase{cap}\input{test/overflow}' \
+  > /dev/null 2>&1
+if grep -q '^\\mfx@noyieldfirm' "$tmp/askrun.aux" \
+   && grep -q 'may have changed' "$tmp/askrun.log"; then
+  echo "as expected: askrun (a new record asks for another run)"
+else
+  echo "UNEXPECTED:  askrun (no new record, or no request for another run)"
+  status=1
+fi
+
 settle captall '\def\overflowcase{cap}\def\overflowgap{26}\def\overflowtall{8}\def\overflowtallnote{5}'
 capped=$(grep -c '^marginfix-spill: .* capped$' "$tmp/captall.log")
 yields=$(grep -c '^marginfix-yield: page=[0-9]* before' "$tmp/captall.log")
