@@ -15,7 +15,7 @@
            [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{4101}
+\CheckSum{4102}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -428,9 +428,11 @@
 %
 % A capped note is no longer beside its mark, so when it is set, we warn:
 % \begin{quote}
-% The margin note called out at \meta{file}:\meta{line}\\
+% The margin note called out at\\
+% \meta{file}:\meta{line}\\
 % on page \meta{page} is set on page \meta{page}:\\
-% \cs{marginnoteyieldlimit} keeps page \meta{page} from ending early for it.
+% \cs{marginnoteyieldlimit} keeps page \meta{page}\\
+% from ending early for it.
 % \end{quote}
 % We also log it as \texttt{capped}:
 % |marginfix-spill: page=|\meta{page}| to=|\meta{page}| capped|, and in
@@ -1760,12 +1762,14 @@
       \def\reserved@a{unresolved}%
     \else
       \def\reserved@a{capped}%
-      \PackageWarningNoLine{marginfix}{The margin note called out at
+      \PackageWarningNoLine{marginfix}{The margin note called out
+        at\MessageBreak
         \MFX@loc{#1}\MessageBreak
         on page \csname mfx@sp@#1\endcsname\space is set on page
         \the\c@page:\MessageBreak
         \string\marginnoteyieldlimit\space keeps page
-        \csname mfx@sp@#1\endcsname\space from ending early for it}%
+        \csname mfx@sp@#1\endcsname\MessageBreak
+        from ending early for it}%
     \fi
   \else
     \def\reserved@a{intended}%

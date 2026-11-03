@@ -47,7 +47,7 @@ for c in carry break local cap caphigh; do
   esac
   case $c in
     cap)
-      warnings=$(grep -c 'keeps page [0-9]* from ending early' "$log")
+      warnings=$(grep -c 'marginnoteyieldlimit keeps page [0-9]*$' "$log")
       if [ "$capped" -gt 0 ] && [ "$intended$unresolved" = 00 ] \
          && [ "$yields" -gt 0 ] && [ "$warnings" = "$capped" ] \
          && grep -q '^Package marginfix Warning: .* note called out at' "$log"
@@ -120,7 +120,7 @@ CASES
 settle captall '\def\overflowcase{cap}\def\overflowgap{26}\def\overflowtall{8}\def\overflowtallnote{5}'
 capped=$(grep -c '^marginfix-spill: .* capped$' "$tmp/captall.log")
 yields=$(grep -c '^marginfix-yield: page=[0-9]* before' "$tmp/captall.log")
-warnings=$(grep -c 'keeps page [0-9]* from ending early' "$tmp/captall.log")
+warnings=$(grep -c 'marginnoteyieldlimit keeps page [0-9]*$' "$tmp/captall.log")
 unresolved=$(grep -c '^marginfix-spill: .* unresolved$' "$tmp/captall.log")
 if [ "$settled" = yes ] && [ "$capped" -gt 0 ] && [ "$yields$unresolved" = 00 ] \
    && [ "$warnings" = "$capped" ]; then
