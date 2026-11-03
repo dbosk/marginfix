@@ -15,7 +15,7 @@
            [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{4009}
+\CheckSum{4101}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -409,13 +409,19 @@
 %
 % The run that finds that a note doesn't fit also sees how high its
 % callout is on the page: if ending the page before it would leave more
-% than \meta{length} empty, it records the note as one not to end the page
-% for (\cs{mfx@noyield}\marg{key} in the \texttt{.aux} file) instead of
-% one to end it for, and asks for another run.  If a page that ends early
-% still leaves more than \meta{length} empty, since the layout moved after
-% the record, the run that sees it records the note the same way.  From
-% then on the callout doesn't end the page, and the record is kept for as
-% long as the callout keeps its key, so the runs settle.  The
+% than \meta{length} empty, it records that room in the \texttt{.aux} file
+% (\cs{mfx@noyieldat}\marg{key}\marg{room}) instead of recording the note as
+% one to end the page for, and asks for another run.  While the recorded
+% room is more than \meta{length}, the callout doesn't end the page.  Each
+% run measures the room again, so the record lasts only as long as its
+% reason: a higher limit, no limit, or text that moves the callout down the
+% page undoes it in the next runs.  If a page that does end early still
+% leaves more than \meta{length} empty, the room it really left is recorded
+% (\cs{mfx@noyieldfirm}), and that one is kept for as long as it is more
+% than the limit, even if the text moves; to undo it, delete the
+% \texttt{.aux} file.  Measuring it again would give the room above the
+% callout's line, not the room above the end of the page, and a note between
+% the two would go back and forth for ever.  The
 % other notes called out on that page are capped with it, since without the
 % break one of them may be the first that doesn't fit, and ending the page
 % before its line would leave even more empty.
@@ -1382,7 +1388,7 @@
 % (\cs{mfx@co@}\meta{number}), and if the mode is \texttt{break} and a
 % previous run recorded the note, we end the page here and record the note
 % again, unless a previous run found that ending the page here leaves too
-% much of it empty (\cs{mfx@noyield}, see \cs{MFX@noyield} below).  The record in the \texttt{.aux} file is \cs{mfx@yield}\marg{key}.
+% much of it empty (\cs{MFX@fit@ifheld} below).  The record in the \texttt{.aux} file is \cs{mfx@yield}\marg{key}.
 % Read at the start of the run, it defines |\mfx@y@|\meta{key}.  In the
 % kernel's check at the end of the run (as for \cs{mfx@anchorpage}), a key
 % that wasn't known at the start asks for another run.
@@ -1390,9 +1396,9 @@
 \def\MFX@fit@callout{%
   \expandafter\xdef\csname mfx@co@\the\mfx@callid\endcsname{\mfx@overflow}%
   \ifx\mfx@overflow\MFX@break
-    \@ifundefined{mfx@ny@\mfx@key}%
+    \MFX@fit@ifheld{\mfx@key}%
+      {\MFX@fit@held}%
       {\@ifundefined{mfx@y@\mfx@key}{}{\MFX@yield}}%
-      {\MFX@noyield}%
   \fi
 }
 \def\mfx@yield#1{%
@@ -1405,33 +1411,89 @@
 %    \end{macrocode}
 % \end{macros}
 %
-% \begin{macros}{\MFX@noyield,\mfx@noyield,\mfx@yieldlimit}
-% A note whose page ended early leaving more than \cs{marginnoteyieldlimit}
-% empty is recorded with \cs{mfx@noyield}\marg{key} (by \cs{MFX@fit@page}).
-% In the next run its callout doesn't end the page; it records the note
-% again, so that the record stays as long as the callout keeps its key, and
-% marks the note (\cs{mfx@cc@}\meta{number}, passed on to its box by
-% \cs{MFX@fit@note}) so that, carried to a later page, it is logged as
-% \texttt{capped}.  Since the note is no longer recorded as one to end the
-% page for (\cs{MFX@fit@record} skips it), the runs settle: the run after
-% the one that capped it no longer ends the page, and the ones after that
-% look the same.
+% \begin{macros}{\MFX@fit@ifheld,\mfx@noyieldat,\mfx@noyieldfirm,
+%     \mfx@noyield,\MFX@fit@held,\MFX@fit@recheck,\mfx@yieldlimit}
+% A note that \cs{marginnoteyieldlimit} keeps from ending its page has a
+% record of the room that ending the page there leaves, kept under its key
+% (|\mfx@ny@|\meta{key}).  \cs{MFX@fit@ifheld}\marg{key}\marg{yes}\marg{no}
+% holds it to the limit of this run: with a higher limit, or none, the note
+% isn't held any more, whatever the \texttt{.aux} file says.  A held note
+% doesn't end its page, and is marked (\cs{mfx@cc@}\meta{number}, passed on
+% to its box by \cs{MFX@fit@note}) so that, carried to a later page, it is
+% logged as \texttt{capped}.
+%
+% There are two kinds of record.  \cs{mfx@noyieldat} is measured from the
+% height of the callout when a page is built, by \cs{MFX@fit@cap}, for each
+% capped note carried from its page, so it follows the text, and a note that
+% fits again is simply no longer recorded (which changes nothing: a note that
+% fits needs no break).
+% \cs{mfx@noyieldfirm} is the room that a page really left when it ended
+% early, by \cs{MFX@fit@page}, and it wins over the other kind.  While it
+% holds the note it is copied from run to run, at the callout
+% (\cs{MFX@fit@held}), whether or not the note is carried, and not measured
+% again, for two reasons.  The measures differ: a page that ends leaves the
+% room above the callout's line, while the height of the callout is about the
+% room below that line's top, and with a tall line the room can be more than
+% the limit from one and not from the other.  And in the run after a page
+% ended early, the note's recorded anchor is the next page, so it waits there
+% and looks as if it fits, though it won't in the run after that.  With either,
+% a note would end its page, get capped, be let go, and so on for ever (see
+% the case \texttt{captall} of \texttt{test/overflowcheck.sh}).  So once a
+% page has really been tried, the outcome stands until the limit changes.
+% Then the runs settle: pages are decided from the first on, and a decision
+% depends only on the text and notes before it.
+%
+% \cs{mfx@noyield}\marg{key} is the record of an earlier version, which may
+% be in an existing \texttt{.aux} file; it had no room to test, so we ignore
+% it.  In the kernel's check at the end of the run (as for
+% \cs{mfx@anchorpage}), a record that changes whether its note is held asks
+% for another run (\cs{MFX@fit@recheck}).
 %    \begin{macrocode}
 \newdimen\mfx@yieldlimit
 \mfx@yieldlimit=\maxdimen
-\def\MFX@noyield{%
-  \if@filesw
-    \immediate\write\@auxout{\string\mfx@noyield{\mfx@key}}%
-  \fi
-  \expandafter\gdef\csname mfx@cc@\the\mfx@callid\endcsname{}%
-}
-\def\mfx@noyield#1{%
-  \ifx\@newl@bel\@testdef
-    \@ifundefined{mfx@ny@#1}{\@tempswatrue}{}%
+\def\MFX@fit@ifheld#1{%
+  \expandafter\ifx\csname mfx@ny@#1\endcsname\relax
+    \expandafter\@secondoftwo
   \else
-    \global\@namedef{mfx@ny@#1}{}%
+    \ifdim\csname mfx@ny@#1\endcsname>\mfx@yieldlimit
+      \expandafter\expandafter\expandafter\@firstoftwo
+    \else
+      \expandafter\expandafter\expandafter\@secondoftwo
+    \fi
   \fi
 }
+\def\MFX@fit@held{%
+  \expandafter\gdef\csname mfx@cc@\the\mfx@callid\endcsname{}%
+  \expandafter\ifx\csname mfx@nf@\mfx@key\endcsname\relax\else
+    \if@filesw
+      \immediate\write\@auxout{\string\mfx@noyieldfirm{\mfx@key}%
+        {\csname mfx@ny@\mfx@key\endcsname}}%
+    \fi
+  \fi
+}
+\def\MFX@fit@recheck#1#2{%
+  \MFX@fit@ifheld{#1}%
+    {\ifdim#2>\mfx@yieldlimit\else\@tempswatrue\fi}%
+    {\ifdim#2>\mfx@yieldlimit\@tempswatrue\fi}%
+}
+\def\mfx@noyieldat#1#2{%
+  \ifx\@newl@bel\@testdef
+    \MFX@fit@recheck{#1}{#2}%
+  \else
+    \expandafter\ifx\csname mfx@nf@#1\endcsname\relax
+      \global\@namedef{mfx@ny@#1}{#2}%
+    \fi
+  \fi
+}
+\def\mfx@noyieldfirm#1#2{%
+  \ifx\@newl@bel\@testdef
+    \MFX@fit@recheck{#1}{#2}%
+  \else
+    \global\@namedef{mfx@ny@#1}{#2}%
+    \global\@namedef{mfx@nf@#1}{}%
+  \fi
+}
+\def\mfx@noyield#1{}
 %    \end{macrocode}
 % \end{macros}
 %
@@ -1488,9 +1550,9 @@
 % it ends with one of our kerns, the page ended for a note, and we say so in
 % the log, and warn if its text fills less than half of the room.
 % If the room left empty (\cs{@colroom} less the height of the text) is more
-% than \cs{marginnoteyieldlimit}, we write \cs{mfx@noyield}\marg{key} to the
-% \texttt{.aux} file, under the key of the note the page ended for
-% (\cs{mfx@yk@}\meta{n}, noted by \cs{MFX@yield}), and under the key of
+% than \cs{marginnoteyieldlimit}, we write \cs{mfx@noyieldfirm} to the
+% \texttt{.aux} file, with that room, under the key of the note the page
+% ended for (\cs{mfx@yk@}\meta{n}, noted by \cs{MFX@yield}), and capping
 % every ordinary note in the mode \texttt{break} called out on this page
 % (\cs{MFX@fit@capnote}): without the break, one of them may be the first
 % that doesn't fit, and ending the page before its line, which is above,
@@ -1523,8 +1585,9 @@
       before=\csname mfx@yl@\the\count@\endcsname}%
     \ifdim\dimexpr\@colroom-\ht\@tempboxa\relax>\mfx@yieldlimit
       \if@filesw
-        \immediate\write\@auxout{\string\mfx@noyield
-          {\csname mfx@yk@\the\count@\endcsname}}%
+        \immediate\write\@auxout{\string\mfx@noyieldfirm
+          {\csname mfx@yk@\the\count@\endcsname}%
+          {\the\dimexpr\@colroom-\ht\@tempboxa\relax}}%
       \fi
       \begingroup
         \def\mfx@build@note##1##2##3{\MFX@fit@capnote##1}%
@@ -1552,7 +1615,7 @@
 %
 % \begin{macros}{\MFX@fit@after,\MFX@fit@carried,\MFX@fit@record,\MFX@fit@spilled,
 %     \mfx@spills,\MFX@fit@capped,\MFX@fit@iscapped,\MFX@fit@cap,
-%     \MFX@fit@toohigh}
+%     \MFX@fit@room,\MFX@fit@toohigh}
 % After the margin of a page is built, what is left in \cs{mfx@marginlist}
 % is carried to later pages.  For each ordinary note in it we note that it's
 % still carried (\cs{mfx@still@}\meta{box}), and if it's carried for the
@@ -1564,8 +1627,8 @@
 % anchor pages have settled, notes may be set on the wrong page and crowd a
 % margin that they won't crowd once they have settled, and a record is
 % kept for good.  So it takes a run more.
-% A note whose key has \cs{mfx@noyield} is not recorded: its page is not to
-% end early.  Nor is a note whose callout is so high on the page that
+% A note that is held (\cs{MFX@fit@ifheld}) is not recorded: its page is not
+% to end early.  Nor is a note whose callout is so high on the page that
 % ending the page before its line would leave more than
 % \cs{marginnoteyieldlimit} empty (\cs{MFX@fit@toohigh}): the room left is
 % about \cs{@colroom} less the height of the callout, which \cs{mfx@place@now}
@@ -1583,8 +1646,10 @@
 % the notes carried from this page for the first time
 % (\cs{MFX@fit@iscapped}); if there is one, \cs{mfx@fit@recorded} is
 % \cs{MFX@fit@capped}, and every note in the mode \texttt{break} carried
-% from this page is capped (\cs{MFX@fit@cap}): marked, and recorded with
-% \cs{mfx@noyield}, so that it doesn't end its page in later runs either.
+% from this page is capped (\cs{MFX@fit@cap}): marked, and recorded with the
+% room above its own callout (\cs{MFX@fit@room}).  Such a note may be low
+% enough not to be held by itself; it is capped again by the note that is,
+% for as long as that one is carried from the page too.
 % Then each note in \cs{mfx@spills} that isn't carried any more has been set
 % on this page, and we log it: as \texttt{capped} if the limit kept its page
 % from ending early (\cs{mfx@bc@}\meta{box}).  Such a note we warn about too,
@@ -1637,7 +1702,7 @@
   \edef\reserved@a{\csname mfx@bk@#1\endcsname}%
   \ifx\reserved@a\@empty\else
     \gdef\mfx@fit@recorded{x}%
-    \@ifundefined{mfx@ny@\reserved@a}{%
+    \MFX@fit@ifheld{\reserved@a}{\global\let\mfx@fit@recorded\MFX@fit@capped}{%
     \@ifundefined{mfx@ap@\reserved@a}{}{%
       \ifnum\@nameuse{mfx@ap@\reserved@a}=\c@page
         \MFX@fit@toohigh{#1}%
@@ -1648,14 +1713,18 @@
             \immediate\write\@auxout{\string\mfx@yield{\reserved@a}}%
           \fi
         \fi
-      \fi}}{\global\let\mfx@fit@recorded\MFX@fit@capped}%
+      \fi}}%
   \fi
 }
+\def\MFX@fit@room#1{%
+  \dimexpr\@colroom
+    \expandafter\ifx\csname mfx@by@#1\endcsname\relax\else
+      -\csname mfx@by@#1\endcsname
+    \fi\relax}
 \def\MFX@fit@toohigh#1{%
   \@tempswafalse
   \expandafter\ifx\csname mfx@by@#1\endcsname\relax\else
-    \ifdim\dimexpr\@colroom-\csname mfx@by@#1\endcsname\relax
-        >\mfx@yieldlimit
+    \ifdim\MFX@fit@room{#1}>\mfx@yieldlimit
       \@tempswatrue
     \fi
   \fi
@@ -1678,7 +1747,10 @@
   \edef\reserved@a{\csname mfx@bk@#1\endcsname}%
   \ifx\reserved@a\@empty\else
     \if@filesw
-      \immediate\write\@auxout{\string\mfx@noyield{\reserved@a}}%
+      \expandafter\ifx\csname mfx@nf@\reserved@a\endcsname\relax
+        \immediate\write\@auxout{\string\mfx@noyieldat{\reserved@a}%
+          {\the\MFX@fit@room{#1}}}%
+      \fi
     \fi
   \fi
 }
@@ -4007,7 +4079,7 @@
 % \begin{macros}{\marginnoteyieldlimit}
 % The limit is read when a page is built, so it is set globally, like the
 % other modes but \cs{marginnoteoverflow}.  The register,
-% \cs{mfx@yieldlimit}, is allocated with \cs{MFX@noyield}.
+% \cs{mfx@yieldlimit}, is allocated with \cs{MFX@fit@ifheld}.
 %    \begin{macrocode}
 \def\marginnoteyieldlimit#1{\global\mfx@yieldlimit=\dimexpr#1\relax}
 %    \end{macrocode}
