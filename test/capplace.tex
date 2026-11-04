@@ -9,6 +9,8 @@
 %          the page, after notes low on their pages have used the boxes.  Its
 %          page can't end early, so it must be capped, whatever those notes
 %          left under its box.
+%   why    as order, with \MFX@fit@capwhy redefined: the warning must give that
+%          reason instead of the limit.
 %   midon  the limit set in the document, after a first part: a note carried
 %          before it isn't capped, and a page ends early for it; one carried
 %          after it is capped.
@@ -19,7 +21,13 @@
 \usepackage{marginfix}
 \marginnoteoverflow{break}
 \def\ordercase{order}\def\stalecase{stale}\def\midoncase{midon}
-\def\midoffcase{midoff}
+\def\midoffcase{midoff}\def\whycase{why}
+\ifx\capplacecase\whycase
+  \makeatletter
+  \def\MFX@fit@capwhy#1{GIVEN REASON for page \csname mfx@sp@#1\endcsname}
+  \makeatother
+  \let\capplacecase\ordercase
+\fi
 \ifx\capplacecase\midoncase\else\marginnoteyieldlimit{10\baselineskip}\fi
 \newcount\capplacepages
 \newcommand\tallnote[1]{\marginpar{#1\par\rule{1pt}{.7\textheight}}}

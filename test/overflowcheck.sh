@@ -195,6 +195,10 @@ margin=$(pdftotext -f 2 -l 2 -layout "$tmp/order.pdf" - | grep -o '[A-Z]*NOTE' |
 [ "$capped$warnings" = 11 ] && [ "$margin" = "TOPNOTE CAPPEDNOTE DOWNNOTE " ]
 report order $? ", page 2 has: $margin"
 
+place why
+[ "$capped$warnings" = 10 ] && grep -q 'GIVEN REASON for page 1' "$tmp/why.log"
+report why $?
+
 place stale
 [ "$capped$warnings$unresolved$yields" = 1100 ]
 report stale $?

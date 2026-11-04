@@ -15,7 +15,7 @@
            [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{4102}
+\CheckSum{4105}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -436,6 +436,9 @@
 % \cs{marginnoteyieldlimit} keeps page \meta{page}\\
 % from ending early for it.
 % \end{quote}
+% A package that caps notes for reasons of its own redefines
+% \cs{MFX@fit@capwhy}\marg{box}, which gives the last two lines, so that the
+% warning says what really kept the page from ending early.
 % We also log it as \texttt{capped}:
 % |marginfix-spill: page=|\meta{page}| to=|\meta{page}| capped|, and in
 % the run that finds it, a line
@@ -1626,7 +1629,7 @@
 %
 % \begin{macros}{\MFX@fit@after,\MFX@fit@carried,\MFX@fit@record,\MFX@fit@spilled,
 %     \mfx@spills,\MFX@fit@capped,\MFX@fit@iscapped,\MFX@fit@cap,
-%     \MFX@fit@room,\MFX@fit@toohigh}
+%     \MFX@fit@room,\MFX@fit@toohigh,\MFX@fit@capwhy}
 % After the margin of a page is built, what is left in \cs{mfx@marginlist}
 % is carried to later pages.  For each ordinary note in it we note that it's
 % still carried (\cs{mfx@still@}\meta{box}), and if it's carried for the
@@ -1767,6 +1770,10 @@
     \fi
   \fi
 }
+\def\MFX@fit@capwhy#1{%
+  \string\marginnoteyieldlimit\space keeps page
+  \csname mfx@sp@#1\endcsname\MessageBreak
+  from ending early for it}
 \def\MFX@fit@spilled#1{%
   \expandafter\ifx\csname mfx@bo@#1\endcsname\MFX@break
     \expandafter\ifx\csname mfx@bc@#1\endcsname\relax
@@ -1778,9 +1785,7 @@
         \MFX@loc{#1}\MessageBreak
         on page \csname mfx@sp@#1\endcsname\space is set on page
         \the\c@page:\MessageBreak
-        \string\marginnoteyieldlimit\space keeps page
-        \csname mfx@sp@#1\endcsname\MessageBreak
-        from ending early for it}%
+        \MFX@fit@capwhy{#1}}%
     \fi
   \else
     \def\reserved@a{intended}%
