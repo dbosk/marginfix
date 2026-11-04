@@ -1364,9 +1364,9 @@
 % callout to names under its box, which stays the same while the note is
 % carried from page to page: its key (\cs{mfx@bk@}\meta{box}), its mode
 % (\cs{mfx@bo@}\meta{box}) and whether \cs{marginnoteyieldlimit} kept its
-% page from ending early (\cs{mfx@bc@}\meta{box}); and we forget the page that a note in the same
-% box was first carried from (\cs{mfx@sp@}\meta{box}), since the box is
-% used for a new note now.
+% page from ending early (\cs{mfx@bc@}\meta{box}); and we forget the page that
+% a note in the same box was first carried from (\cs{mfx@sp@}\meta{box}), since
+% the box is used for a new note now.
 %    \begin{macrocode}
 \def\MFX@fit@note{%
   \expandafter\let\expandafter\reserved@a
@@ -1396,7 +1396,8 @@
 % (\cs{mfx@co@}\meta{number}), and if the mode is \texttt{break} and a
 % previous run recorded the note, we end the page here and record the note
 % again, unless a previous run found that ending the page here leaves too
-% much of it empty (\cs{MFX@fit@ifheld} below).  The record in the \texttt{.aux} file is \cs{mfx@yield}\marg{key}.
+% much of it empty (\cs{MFX@fit@ifheld} below).  The record in the
+% \texttt{.aux} file is \cs{mfx@yield}\marg{key}.
 % Read at the start of the run, it defines |\mfx@y@|\meta{key}.  In the
 % kernel's check at the end of the run (as for \cs{mfx@anchorpage}), a key
 % that wasn't known at the start asks for another run.
