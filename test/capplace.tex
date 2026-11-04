@@ -1,0 +1,65 @@
+% Where capped notes end up, with \marginnoteoverflow{break} and
+% \marginnoteyieldlimit{10\baselineskip}, in rules of known heights rather than
+% text, so that the pages don't depend on the fonts.  \capplacecase is
+%   order  two tall notes at the top of page 1, the second capped, with notes
+%          called out on page 2: one in its first line, which the output
+%          routine sees while it fills page 1, and one further down.  In page
+%          2's margin they must come as TOPNOTE, CAPPEDNOTE, DOWNNOTE.
+%   stale  a note carried from the page of its callout in the first line of
+%          the page, after notes low on their pages have used the boxes.  Its
+%          page can't end early, so it must be capped, whatever those notes
+%          left under its box.
+%   midon  the limit set in the document, after a first part: a note carried
+%          before it isn't capped, and a page ends early for it; one carried
+%          after it is capped.
+%   midoff the other way round: a limit in the preamble, and none from the
+%          second part on.
+% test/overflowcheck.sh runs each case and checks the outcome.
+\documentclass[a4paper]{article}
+\usepackage{marginfix}
+\marginnoteoverflow{break}
+\def\ordercase{order}\def\stalecase{stale}\def\midoncase{midon}
+\def\midoffcase{midoff}
+\ifx\capplacecase\midoncase\else\marginnoteyieldlimit{10\baselineskip}\fi
+\newcount\capplacepages
+\newcommand\tallnote[1]{\marginpar{#1\par\rule{1pt}{.7\textheight}}}
+\newcommand\shortnote[1]{\marginpar{#1}}
+% A paragraph of three lines or more whose first line would fit at the foot of
+% the page, but which can't break after it.  So the output routine sees the
+% notes of that line while it fills this page, and the line starts the next.
+\newcommand\movedpara[1]{\par\begingroup\clubpenalty=10000 \noindent x#1
+  text text text text text text text text text text text text text text text
+  text text text text text text text text text text text text text text text
+  text text text text text text text text text text text text text text text
+  text text text text text text text text text text text text text text text
+  \par\endgroup}
+\begin{document}
+\ifx\capplacecase\ordercase
+  \noindent x\tallnote{FIRSTNOTE}\tallnote{CAPPEDNOTE} text
+  \par\noindent\rule{1cm}{\dimexpr\textheight-2.3\baselineskip}\par
+  \movedpara{\shortnote{TOPNOTE}}
+  \par\noindent\rule{1cm}{.4\textheight}\par
+  \noindent x\shortnote{DOWNNOTE} text
+  \par\noindent\rule{1cm}{.4\textheight}\par
+\fi
+\ifx\capplacecase\stalecase
+  \loop
+    \noindent\rule{1cm}{.9\textheight}\par
+    \noindent x\shortnote{low} text\clearpage
+    \advance\capplacepages by 1
+  \ifnum\capplacepages<60\repeat
+  \noindent\rule{1cm}{\dimexpr\textheight-1.3\baselineskip}\par
+  \movedpara{\tallnote{FIRSTNOTE}\tallnote{STALENOTE}}
+\fi
+\ifx\capplacecase\ordercase\else\ifx\capplacecase\stalecase\else
+  \noindent\rule{1cm}{.5\textheight}\par
+  \noindent x\tallnote{EARLYONE}\tallnote{EARLYTWO} text\clearpage
+  \ifx\capplacecase\midoncase
+    \marginnoteyieldlimit{10\baselineskip}
+  \else
+    \marginnoteyieldlimit{\maxdimen}
+  \fi
+  \noindent\rule{1cm}{.5\textheight}\par
+  \noindent x\tallnote{LATEONE}\tallnote{LATETWO} text
+\fi\fi
+\end{document}

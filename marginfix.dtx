@@ -878,8 +878,11 @@
 % the note here we hold it in \cs{mfx@deferred} until its anchor page comes
 % around (see \cs{mfx@release@deferred}).  With no recorded anchor (first
 % run, or a brand-new note) we behave exactly as before.
-% A note placed now also keeps the height of its callout under its box
-% (\cs{mfx@by@}\meta{box}), for \cs{MFX@fit@record}.
+% A note keeps the height of its callout under its box
+% (\cs{mfx@by@}\meta{box}), for \cs{MFX@fit@room}: one placed now its own, and
+% one held back 0\,pt, since it is released at the top of its page, with its
+% callout in the first lines there.  Boxes are used again, so every note must
+% set it, or it would read the height of the box's last note.
 %    \begin{macrocode}
 \def\mfx@maybe@defer{%
   \expandafter\let\expandafter\mfx@key
@@ -905,6 +908,7 @@
   }%
 }
 \def\mfx@defer@note{%
+  \expandafter\gdef\csname mfx@by@\number\@currbox\endcsname{0pt}%
   \MFX@cons\mfx@deferred{%
     \noexpand\mfx@deferred@note\@currbox\@marbox
       {\@nameuse{mfx@ap@\mfx@key}}%
@@ -1635,8 +1639,10 @@
 % to end early.  Nor is a note whose callout is so high on the page that
 % ending the page before its line would leave more than
 % \cs{marginnoteyieldlimit} empty (\cs{MFX@fit@toohigh}): the room left is
-% about \cs{@colroom} less the height of the callout, which \cs{mfx@place@now}
-% kept (\cs{mfx@by@}\meta{box}).  It is capped right away, in the run that
+% about \cs{@colroom} less the height of the callout, which the note kept
+% (\cs{mfx@by@}\meta{box}, read by \cs{MFX@fit@room}: with no height to go by
+% it says no room, so that the note is tried, and a page that really ends early
+% is measured by \cs{MFX@fit@page}).  It is capped right away, in the run that
 % finds it doesn't fit, so the page never ends early only to be capped a
 % run later; each such change of the layout costs a run, and can make
 % other decisions taken from the previous run, like \textsf{didactic}'s
@@ -1721,16 +1727,16 @@
   \fi
 }
 \def\MFX@fit@room#1{%
-  \dimexpr\@colroom
-    \expandafter\ifx\csname mfx@by@#1\endcsname\relax\else
-      -\csname mfx@by@#1\endcsname
+  \dimexpr
+    \expandafter\ifx\csname mfx@by@#1\endcsname\relax
+      \z@
+    \else
+      \@colroom-\csname mfx@by@#1\endcsname
     \fi\relax}
 \def\MFX@fit@toohigh#1{%
   \@tempswafalse
-  \expandafter\ifx\csname mfx@by@#1\endcsname\relax\else
-    \ifdim\MFX@fit@room{#1}>\mfx@yieldlimit
-      \@tempswatrue
-    \fi
+  \ifdim\MFX@fit@room{#1}>\mfx@yieldlimit
+    \@tempswatrue
   \fi
 }
 \def\MFX@fit@capped{c}

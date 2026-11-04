@@ -17,15 +17,15 @@
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 status=0
-# settle <job> <preamble definitions>: runs <job> until its .aux file stops
-# changing and the last run doesn't ask for another; sets $settled and $i.
+# settle <job> <preamble definitions> [<file>]: runs <job> until its .aux file
+# stops changing and the last run doesn't ask for another; sets $settled and $i.
 settle() {
   settled=no
   for i in 1 2 3 4 5 6 7 8; do
     [ -f "$tmp/$1.aux" ] && cp "$tmp/$1.aux" "$tmp/$1.aux.old"
     TEXINPUTS=".//:" pdflatex -interaction=nonstopmode \
       -output-directory="$tmp" -jobname="$1" \
-      "$2\\input{test/overflow}" > /dev/null 2>&1
+      "$2\\input{${3:-test/overflow}}" > /dev/null 2>&1
     if [ -f "$tmp/$1.aux.old" ] && cmp -s "$tmp/$1.aux" "$tmp/$1.aux.old" \
        && ! grep -q 'Rerun\|may have changed' "$tmp/$1.log"; then
       settled=yes; break
@@ -170,4 +170,28 @@ else
   echo "UNEXPECTED:  captall (settled: $settled, capped: $capped, early ends:" \
     "$yields, unresolved: $unresolved, warnings: $warnings)"; status=1
 fi
+
+# Cases of test/capplace.tex: settle, then $capped, $warnings, $unresolved,
+# $yields and $errors.  Each case's check below gets them.
+place() {
+  settle "$1" "\\def\\capplacecase{$1}" test/capplace
+  capped=$(grep -c '^marginfix-spill: .* capped$' "$tmp/$1.log")
+  warnings=$(grep -c 'marginnoteyieldlimit keeps page [0-9]*$' "$tmp/$1.log")
+  unresolved=$(grep -c '^marginfix-spill: .* unresolved$' "$tmp/$1.log")
+  yields=$(grep -c '^marginfix-yield: page=[0-9]* before' "$tmp/$1.log")
+  errors=$(grep -c '^!' "$tmp/$1.log")
+  state="settled: $settled, errors: $errors, capped: $capped, warnings: $warnings,"
+  state="$state unresolved: $unresolved, early ends: $yields"
+}
+report() { # <job> <test result: 0 is good>
+  if [ "$2" = 0 ] && [ "$settled$errors" = yes0 ]; then
+    echo "as expected: $1 ($state)"
+  else
+    echo "UNEXPECTED:  $1 ($state$3)"; status=1
+  fi
+}
+place stale
+[ "$capped$warnings$unresolved$yields" = 1100 ]
+report stale $?
+
 exit $status
