@@ -62,4 +62,9 @@
   \noindent\rule{1cm}{.5\textheight}\par
   \noindent x\tallnote{LATEONE}\tallnote{LATETWO} text
 \fi\fi
+% A last page, so that the page before it isn't built after \dumpmargins at the
+% end of the document has let go of the notes held back (\mfx@flush@deferred):
+% it is \mfx@release@deferred that these cases are about.
+\clearpage
+\noindent last
 \end{document}
