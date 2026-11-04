@@ -190,8 +190,23 @@ report() { # <job> <test result: 0 is good>
     echo "UNEXPECTED:  $1 ($state$3)"; status=1
   fi
 }
+place order
+margin=$(pdftotext -f 2 -l 2 -layout "$tmp/order.pdf" - | grep -o '[A-Z]*NOTE' | tr '\n' ' ')
+[ "$capped$warnings" = 11 ] && [ "$margin" = "TOPNOTE CAPPEDNOTE DOWNNOTE " ]
+report order $? ", page 2 has: $margin"
+
 place stale
 [ "$capped$warnings$unresolved$yields" = 1100 ]
 report stale $?
 
+# A limit set in the document counts from the next page on.
+place midon
+[ "$yields" -gt 0 ] && [ "$capped" -gt 0 ] && [ "$warnings" = "$capped" ] \
+  && [ "$(grep -c '^marginfix-spill: page=[12] .* capped$' "$tmp/midon.log")" = 0 ]
+report midon $?
+
+place midoff
+[ "$yields" -gt 0 ] && [ "$capped" -gt 0 ] && [ "$warnings" = "$capped" ] \
+  && [ "$(grep -c '^marginfix-spill: page=[12] .* capped$' "$tmp/midoff.log")" = "$capped" ]
+report midoff $?
 exit $status

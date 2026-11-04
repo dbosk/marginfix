@@ -403,9 +403,11 @@
 % left empty for a note: if the room left below the text of a page that
 % ended early (the text height less the height of its text) is more than
 % \meta{length}, the note is carried instead, as in the mode
-% \texttt{carry}.  The default is \cs{maxdimen}, no limit.  The limit
-% counts when the page is built, so it applies to the whole document; set
-% it in the preamble, say |\marginnoteyieldlimit{5\baselineskip}|.
+% \texttt{carry}.  The default is \cs{maxdimen}, no limit.  To apply it to
+% the whole document, set it in the preamble, say
+% |\marginnoteyieldlimit{5\baselineskip}|.  In the document it counts from
+% the next page on, since a page is built some time after its text is read, so
+% start a new page where you change it.
 %
 % The run that finds that a note doesn't fit also sees how high its
 % callout is on the page: if ending the page before it would leave more
