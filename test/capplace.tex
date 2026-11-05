@@ -5,10 +5,15 @@
 %          called out on page 2: one in its first line, which the output
 %          routine sees while it fills page 1, and one further down.  In page
 %          2's margin they must come as TOPNOTE, CAPPEDNOTE, DOWNNOTE.
-%   stale  a note carried from the page of its callout in the first line of
-%          the page, after notes low on their pages have used the boxes.  Its
-%          page can't end early, so it must be capped, whatever those notes
-%          left under its box.
+%   foot   a footnote at the foot of the page where a note ends the page: the
+%          text no longer ends the output box then, and the early end must
+%          still be seen.
+%   stale  a note in the first line of a page, held back while the page before
+%          is built and then carried from its page, after a note low on an
+%          earlier page.  Its page can't end early, so it must be capped,
+%          with no height of its own or another's in the way.  It logs
+%          "capplace: held back", so that the case can't pass by not getting
+%          there.
 %   why    as order, with \MFX@fit@capwhy redefined: the warning must give that
 %          reason instead of the limit.
 %   midon  the limit set in the document, after a first part: a note carried
@@ -21,7 +26,16 @@
 \usepackage{marginfix}
 \marginnoteoverflow{break}
 \def\ordercase{order}\def\stalecase{stale}\def\midoncase{midon}
-\def\midoffcase{midoff}\def\whycase{why}
+\def\midoffcase{midoff}\def\whycase{why}\def\footcase{foot}
+\ifx\capplacecase\stalecase
+  \makeatletter
+  \AtBeginDocument{%
+    \let\capplace@defer\mfx@defer@note
+    \def\mfx@defer@note{%
+      \wlog{capplace: held back}%
+      \capplace@defer}}%
+  \makeatother
+\fi
 \ifx\capplacecase\whycase
   \makeatletter
   \def\MFX@fit@capwhy#1{GIVEN REASON for page \csname mfx@sp@#1\endcsname}
@@ -55,11 +69,23 @@
     \noindent\rule{1cm}{.9\textheight}\par
     \noindent x\shortnote{low} text\clearpage
     \advance\capplacepages by 1
-  \ifnum\capplacepages<60\repeat
+  \ifnum\capplacepages<2\repeat
   \noindent\rule{1cm}{\dimexpr\textheight-1.3\baselineskip}\par
   \movedpara{\tallnote{FIRSTNOTE}\tallnote{STALENOTE}}
 \fi
+\ifx\capplacecase\footcase
+  \noindent x\tallnote{FIRSTNOTE} text\footnote{A footnote.}
+  \par\noindent\rule{1cm}{\dimexpr\textheight-8\baselineskip}\par
+  \noindent x\tallnote{FOOTNOTE} text text text text text text text text text
+  text text text text text text text text text text text text text text text
+  text text text text text text text text text text text text text text text
+  text text text text text text text text text text text text text text text
+  text text text text text text text text text text text text text text text
+  text text text text text text text text text text text text text text text
+  text text text text text text text text text text text text text text text
+\fi
 \ifx\capplacecase\ordercase\else\ifx\capplacecase\stalecase\else
+  \ifx\capplacecase\footcase\else
   \noindent\rule{1cm}{.5\textheight}\par
   \noindent x\tallnote{EARLYONE}\tallnote{EARLYTWO} text\clearpage
   \ifx\capplacecase\midoncase
@@ -69,6 +95,7 @@
   \fi
   \noindent\rule{1cm}{.5\textheight}\par
   \noindent x\tallnote{LATEONE}\tallnote{LATETWO} text
+  \fi
 \fi\fi
 % A last page, so that the page before it isn't built after \dumpmargins at the
 % end of the document has let go of the notes held back (\mfx@flush@deferred):

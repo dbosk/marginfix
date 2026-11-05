@@ -200,8 +200,14 @@ place why
 report why $?
 
 place stale
-[ "$capped$warnings$unresolved$yields" = 1100 ]
+[ "$capped$warnings$unresolved$yields" = 1100 ] \
+  && grep -q '^capplace: held back' "$tmp/stale.log"
 report stale $?
+
+# The early end seen though a footnote ends the output box.
+place foot
+[ "$yields" -gt 0 ] && [ "$capped$unresolved" = 00 ]
+report foot $?
 
 # A limit set in the document counts from the next page on.
 place midon
