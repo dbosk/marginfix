@@ -5,6 +5,7 @@
 %          called out on page 2: one in its first line, which the output
 %          routine sees while it fills page 1, and one further down.  In page
 %          2's margin they must come as TOPNOTE, CAPPEDNOTE, DOWNNOTE.
+%   multi  multicols, whose output routine isn't ours: it must not stop us.
 %   foot   a footnote at the foot of the page where a note ends the page: the
 %          text no longer ends the output box then, and the early end must
 %          still be seen.
@@ -23,10 +24,11 @@
 %          second part on.
 % test/overflowcheck.sh runs each case and checks the outcome.
 \documentclass[a4paper]{article}
+\usepackage{multicol}
 \usepackage{marginfix}
 \marginnoteoverflow{break}
 \def\ordercase{order}\def\stalecase{stale}\def\midoncase{midon}
-\def\midoffcase{midoff}\def\whycase{why}\def\footcase{foot}
+\def\midoffcase{midoff}\def\whycase{why}\def\footcase{foot}\def\multicase{multi}
 \ifx\capplacecase\stalecase
   \makeatletter
   \AtBeginDocument{%
@@ -73,6 +75,15 @@
   \noindent\rule{1cm}{\dimexpr\textheight-1.3\baselineskip}\par
   \movedpara{\tallnote{FIRSTNOTE}\tallnote{STALENOTE}}
 \fi
+\ifx\capplacecase\multicase
+  \begin{multicols}{2}
+  \loop
+    text text text text text text text text text text text text text text text
+    text text text text text text text text text text text text text text text
+    \advance\capplacepages by 1
+  \ifnum\capplacepages<60\repeat
+  \end{multicols}
+\fi
 \ifx\capplacecase\footcase
   \noindent x\tallnote{FIRSTNOTE} text\footnote{A footnote.}
   \par\noindent\rule{1cm}{\dimexpr\textheight-8\baselineskip}\par
@@ -85,7 +96,7 @@
   text text text text text text text text text text text text text text text
 \fi
 \ifx\capplacecase\ordercase\else\ifx\capplacecase\stalecase\else
-  \ifx\capplacecase\footcase\else
+  \ifx\capplacecase\footcase\else\ifx\capplacecase\multicase\else
   \noindent\rule{1cm}{.5\textheight}\par
   \noindent x\tallnote{EARLYONE}\tallnote{EARLYTWO} text\clearpage
   \ifx\capplacecase\midoncase
@@ -95,7 +106,7 @@
   \fi
   \noindent\rule{1cm}{.5\textheight}\par
   \noindent x\tallnote{LATEONE}\tallnote{LATETWO} text
-  \fi
+  \fi\fi
 \fi\fi
 % A last page, so that the page before it isn't built after \dumpmargins at the
 % end of the document has let go of the notes held back (\mfx@flush@deferred):

@@ -204,6 +204,11 @@ place stale
   && grep -q '^capplace: held back' "$tmp/stale.log"
 report stale $?
 
+# multicols has an output routine of its own.
+place multi
+[ "$capped$unresolved$yields" = 000 ] && [ "$(pdfinfo "$tmp/multi.pdf" 2>/dev/null | grep -c Pages)" = 1 ]
+report multi $?
+
 # The early end seen though a footnote ends the output box.
 place foot
 [ "$yields" -gt 0 ] && [ "$capped$unresolved" = 00 ]

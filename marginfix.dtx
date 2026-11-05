@@ -15,7 +15,7 @@
            [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{4133}
+\CheckSum{4141}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -1563,7 +1563,9 @@
 % At the start of the output routine, before \cs{@makecol} adds footnotes after
 % the text, we look at the end of the text (\cs{MFX@fit@peek}), and keep its
 % height too, for a package that wants it (\cs{mfx@fit@textht}): if it ends with
-% one of our kerns, the page ended for a note.  Then before the margin of the
+% one of our kerns, the page ended for a note.  An output routine of its own, such
+% as that of \textsf{multicol}, doesn't go through here, so it's reset for each
+% page.  Then before the margin of the
 % page is built, we say so in the log, and warn if its text fills less than half
 % of the room.
 % If the room left empty (\cs{@colroom} less the height of the text) is more
@@ -1592,6 +1594,8 @@
 %    \end{macrocode}
 % Then \cs{MFX@fit@page} itself.
 %    \begin{macrocode}
+\gdef\mfx@fit@lastkern{0}
+\gdef\mfx@fit@textht{0pt}
 \def\MFX@fit@peek{%
   \ifnum\outputpenalty<-\@M
     \gdef\mfx@fit@lastkern{0}%
@@ -1852,6 +1856,8 @@
   \mfx@release@deferred
   \MFX@buildmargin
   \MFX@fit@after
+  \gdef\mfx@fit@lastkern{0}%
+  \gdef\mfx@fit@textht{0pt}%
   \MFX@attachmargin
   \global\Mfx@marginheight\z@
 }
