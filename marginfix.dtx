@@ -15,7 +15,7 @@
            [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3735}
+\CheckSum{3768}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -108,6 +108,12 @@
 % \changes{v1.6}{2026/10/22}
 %       {(Daniel Bosk) Don't add a place to break the page after a line that
 %        calls out a note: the paragraph's own penalties decide.}
+% \changes{v1.6}{2026/11/09}
+%       {(Daniel Bosk) A line that calls out a note in a paragraph may end a
+%        page again where the paragraph has no penalty of its own after it.}
+% \changes{v1.6}{2026/11/09}
+%       {(Daniel Bosk) Wrap \cs{@xympar} instead of replacing the kernel's,
+%        and say where \cs{nopagebreak} goes to keep a line with a note.}
 % \changes{v1.6}{2026/10/22}
 %       {(Daniel Bosk) Keep the margin beside a float placed in the text
 %        empty when it has a side caption or says
@@ -788,6 +794,19 @@
 % text, so that no penalty is added and the paragraph's own decide.  A note
 % called out between paragraphs ($-10\,003$) keeps the penalty, which stands
 % in for the place to break that the note took.
+%
+% But where the paragraph has no penalty of its own after the line (between
+% two lines in the middle of it, where \cs{interlinepenalty} is zero, \TeX\
+% puts none), nothing would be left to break at: the penalty of the
+% callout, $-10\,002$, at which the output routine ran, stays in the list
+% with the value $10\,000$, as \TeX\ leaves a penalty it broke at, and the
+% glue between the lines follows it, which is no place to break after a
+% penalty.  So the line could never end a page.  We put a \cs{kern} of zero
+% after the callout (\cs{MFX@calloutbreak}, below): a kern followed by glue
+% is a place to break, at no cost, and where the paragraph has a penalty of
+% its own after the line, that penalty comes between the kern and the glue,
+% so the kern is no place to break and the paragraph's penalty decides, as
+% before.
 %    \begin{macrocode}
 \def\@addmarginpar{%
   \@next\@marbox\@currlist{}\MFX@AssertionError
@@ -808,6 +827,38 @@
   \fi
 %<debug>\MFX@debug{addmarginpar (exit): marginlist=\MFX@mac\mfx@marginlist}%
 }
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@calloutbreak,\MFX@orig@xympar}
+% The kernel's \cs{@xympar} calls out the note with a \cs{vadjust}
+% (\cs{end@float}); we add a second one, with the kern, after it in a
+% paragraph, so that it follows the callout's penalties after the line.
+% We wrap \cs{@xympar} as it is at the start of the document, whoever
+% defined it, rather than copy the kernel's, so that a change in the kernel
+% doesn't turn this off.  The callout ends with \cs{@esphack}, which, after
+% a space before the note, ignores the spaces after it with
+% \cs{ignorespaces}; our \cs{vadjust} stops that, so we ignore them again.
+%
+% A \cs{nopagebreak} written before the \cs{marginpar} in the same line
+% comes before the callout and its kern, so it doesn't keep the line from
+% ending a page, as with the kernel alone; written after the
+% \cs{marginpar}, it comes between the kern and the glue, and does.
+%    \begin{macrocode}
+\def\MFX@calloutbreak{%
+  \let\MFX@next\relax
+  \ifhmode
+    \ifnum\@floatpenalty=-\@Mii
+      \vadjust{\kern\z@}%
+      \ifdim\@savsk>\z@\let\MFX@next\ignorespaces\fi
+    \fi
+  \fi
+  \MFX@next}
+\AtBeginDocument{%
+  \ifdefined\@xympar
+    \let\MFX@orig@xympar\@xympar
+    \def\@xympar{\MFX@orig@xympar\MFX@calloutbreak}%
+  \fi}
 %    \end{macrocode}
 % \end{macros}
 %
