@@ -15,7 +15,7 @@
            [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{4584}
+\CheckSum{4594}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -1539,12 +1539,18 @@
 % it too, from the notes of the page it is carried from
 % (\cs{mfx@fit@pagelist}, kept before the build), so that the next run can
 % check its page already.  It is read at the start of the next run
-% (|\mfx@yh@|\meta{key}); a height that changes asks for no run, since it only
-% feeds the check of a later page build.  A record from before there were
-% heights has none, and isn't retired until a run has written one.
+% (|\mfx@yh@|\meta{key}).  A height that changes asks for another run, since
+% the next page build may then find that the note fits, or no longer does.  A
+% record from before there were heights has none, and isn't retired until a run
+% has written one.
 %    \begin{macrocode}
 \def\mfx@yieldht#1#2{%
-  \ifx\@newl@bel\@testdef\else
+  \ifx\@newl@bel\@testdef
+    \def\reserved@a{#2}%
+    \expandafter\ifx\csname mfx@yh@#1\endcsname\reserved@a\else
+      \@tempswatrue
+    \fi
+  \else
     \global\@namedef{mfx@yh@#1}{#2}%
   \fi
 }
