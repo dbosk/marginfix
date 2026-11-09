@@ -406,6 +406,17 @@
 % \texttt{.aux} file; a line added or removed before the note in its file also
 % makes a new record of it.
 %
+% All this takes runs: the run that finds a note that doesn't fit, the next,
+% whose page ends early, one that sees that the record is stale, one more for
+% the page to fill, and one for the anchor pages to settle, and each passage
+% that moves can start this again.  So a document dense with notes needs more
+% runs than the 5 that \texttt{latexmk} allows by default.  Set
+% |$max_repeat| to 10 in a |latexmkrc| for such a document.  Past the limit,
+% \texttt{latexmk} stops with an error (status 12), and when it is run again it
+% says that everything is up to date and keeps the PDF as it is, not settled;
+% force it with |latexmk -g|, or run \LaTeX\ until it no longer asks for a
+% rerun.
+%
 % Every ordinary note that is still carried to a later page is logged when
 % it is set, one line each:
 % |marginfix-spill: page=|\meta{page of the callout}| to=|\meta{page of the
