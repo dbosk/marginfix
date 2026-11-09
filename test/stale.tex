@@ -17,7 +17,9 @@
 %            before the second paragraph;
 %   needed   memoir, with more space before the first paragraph: both
 %            records are needed (each page that ends early is full of
-%            notes), and must stay, though one page is less than half full;
+%            notes, to the foot of its margin), and must stay (22 lines:
+%            since a line that calls out a note may end a page, the 16 lines
+%            this had left one page that needed a record);
 %   linemate stale, with a long note called out on the same line just
 %            before the note of the second record: the page has room for
 %            that note alone, but not for both, which come to it together,
@@ -73,7 +75,7 @@
   \newcommand\fn[1]{\footnote{#1 \lipsum[1][1-5]}}
 \fi
 \ifx\stalecase\staleneeded
-  \def\staleA{16}\def\staleB{12}
+  \def\staleA{22}\def\staleB{12}
 \else
   \def\staleA{0}\def\staleB{24}
 \fi
