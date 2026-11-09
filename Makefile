@@ -25,7 +25,7 @@ test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	$(SIDE_CASES:%=side-%.pdf) \
-	overflow-test midfloat-test
+	overflow-test stale-test midfloat-test
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
@@ -130,6 +130,12 @@ modechange.pdf modechange-warn.pdf: marginfix.sty test/modechange.tex \
 .PHONY: overflow-test
 overflow-test:marginfix.sty
 	test/overflowcheck.sh
+
+# A page doesn't end early for a note that fits (test/stale.tex); needs
+# pdftotext.
+.PHONY: stale-test
+stale-test:marginfix.sty
+	test/stalecheck.sh
 
 # A float in the text with a side caption keeps the margin beside it empty
 # (test/midfloat.tex); needs pdftotext.
