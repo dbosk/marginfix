@@ -1,48 +1,91 @@
 #!/bin/bash
 # Check that a page doesn't end early for a note that fits, on test/stale.tex
-# (see there).  Each case is run until the .aux file stops changing (at most
-# eight runs, and the last must not ask for another), then:
-#   stale, article  settled within five runs (latexmk's default), no page
-#                   less than half full, a record retired, no note carried;
+# and test/stalefit.tex (see there).  Each case is run until the .aux file stops
+# changing, and the last run must not ask for another, then:
+#   stale, article, twoside  settled within five runs (latexmk's default), no
+#                   page less than half full, a record retired, no note carried;
 #   needed          settled within five runs, at least two early page ends
 #                   and no record retired, no note carried;
 #   linemate        settled (in six runs, as before records were retired),
-#                   no record retired or made for good, no note carried;
-#   all four        every break that stands is needed: with all the records
+#                   no record ever retired, no note carried;
+#   these five      every break that stands is needed: with all the records
 #                   of its note taken out of the settled .aux file, the runs
 #                   settle on the same text, page by page;
 #   split, defer, off, limit  stale under these \marginnotepriority modes and
 #                   a \marginnoteyieldlimit of 30 lines, less than the stale
 #                   page leaves: as stale, and nothing capped;
+#   giveway-defer, giveway-split  stale with a deferrable note that fills the
+#                   room of the stale note, which it gives way to;
+#   twocol          stale in two columns: settled, a record retired;
 #   xe              stale under XeLaTeX, where no page can end early: the
 #                   notes are carried, and nothing is retired;
-#   lie             needed, with the height of the note of its second break
-#                   written wrong in every run (\stalelie): it settles, its
-#                   record ends up for good (\mfx@yieldfirm), and the text is
-#                   that of needed.
+#   carried         a note in the mode carry is left over from the page, so
+#                   the note after it can't fit, whatever the room: no record
+#                   ever retired;
+#   pieces          a record of a note that fits in a lower piece of the
+#                   margin, below the piece where the notes end: retired;
+#   edit            the first paragraph's notes taken out and put back, in
+#                   the file it is in, with the .aux file kept: the same text
+#                   as from no .aux file, the first time.  The second time the
+#                   note has been retired twice: the page ends early, with a
+#                   warning;
+#   grow            the note of the stale record made too tall for its page,
+#                   and back, with the .aux file kept: as from no .aux file;
+#   older           the .aux file read by a version that doesn't know its
+#                   records (\staleolder): no error;
+#   lie             needed, with the height of its second note taken to be
+#                   wrong in every run (\stalelie): it settles, with a warning,
+#                   and the text is that of needed.
 #
 # Usage (from the repository root, after make marginfix.sty):
 #   test/stalecheck.sh
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 status=0
-# settle <job> <preamble definitions>: as in test/overflowcheck.sh.
+# settle <job> <preamble definitions> [<file>] [<most runs>]: as in
+# test/overflowcheck.sh.
 settle() {
   settled=no
-  for i in 1 2 3 4 5 6 7 8; do
+  for i in $(seq 1 "${4:-8}"); do
     [ -f "$tmp/$1.aux" ] && cp "$tmp/$1.aux" "$tmp/$1.aux.old"
     TEXINPUTS=".//:" pdflatex -interaction=nonstopmode \
       -output-directory="$tmp" -jobname="$1" \
-      "$2\\input{test/stale}" > /dev/null 2>&1
+      "$2\\input{${3:-test/stale}}" > /dev/null 2>&1
     if [ -f "$tmp/$1.aux.old" ] && cmp -s "$tmp/$1.aux" "$tmp/$1.aux.old" \
        && ! grep -q 'Rerun\|may have changed' "$tmp/$1.log"; then
       settled=yes; break
     fi
   done
 }
+# count <pattern> <file>
+count() { grep -c "$1" "$2"; }
+# Numbers of the settled <job>, in variables and in $state.
+look() {
+  log=$tmp/$1.log; aux=$tmp/$1.aux; runs=$i
+  errors=$(count '^!' "$log")
+  spills=$(count '^marginfix-spill' "$log")
+  yields=$(count '^marginfix-yield: page=[0-9]* before' "$log")
+  half=$(count 'ends early, so' "$log")
+  retired=$(count '^\\mfx@unyield' "$aux")
+  tries=$(count '^\\mfx@yieldtries' "$aux")
+  capped=$(count '^\\mfx@noyield' "$aux")
+  state="settled: $settled after $runs runs, errors: $errors, spills: $spills,"
+  state="$state early ends: $yields, less than half full: $half,"
+  state="$state retired: $retired, recorded again: $tries, capped: $capped"
+}
+# report <job> <result of its check: 0 is good> [more to say]
+report() {
+  if [ "$2" = 0 ] && [ "$settled$errors" = yes0 ]; then
+    echo "as expected: $1 ($state$3)"
+  else
+    echo "UNEXPECTED:  $1 ($state$3)"; status=1
+  fi
+}
+same() { diff <(pdftotext -layout "$tmp/$1.pdf" -) \
+              <(pdftotext -layout "$tmp/$2.pdf" -) > /dev/null; }
 # standing <aux>: the keys whose last record ends their page.
 standing() {
-  grep -o '^\\mfx@\(yield\|yieldfirm\|unyield\){[^}]*}' "$1" \
+  grep -o '^\\mfx@\(yield\|unyield\){[^}]*}' "$1" \
     | sed 's/^\\mfx@\([a-z]*\){\(.*\)}$/\2 \1/' \
     | awk '{last[$1]=$2} END {for (k in last) if (last[k] != "unyield") print k}'
 }
@@ -54,41 +97,28 @@ needed() {
     grep -v "{$k}" "$tmp/$1.aux" > "$tmp/drop.aux"
     rm -f "$tmp"/drop.aux.old
     settle drop "$2"
-    if [ "$settled" != yes ] \
-       || ! diff <(pdftotext -layout "$tmp/drop.pdf" -) \
-                 <(pdftotext -layout "$tmp/$1.pdf" -) > /dev/null; then
+    if [ "$settled" != yes ] || ! same drop "$1"; then
       unneeded="$unneeded $k"
     fi
     rm -f "$tmp"/drop.*
   done
 }
-for c in stale article needed linemate; do
+
+for c in stale article twoside needed linemate; do
   settle "$c" "\\def\\stalecase{$c}"
-  runs=$i; ok=$settled
-  log=$tmp/$c.log
-  errors=$(grep -c '^!' "$log")
-  spills=$(grep -c '^marginfix-spill' "$log")
-  yields=$(grep -c '^marginfix-yield: page=[0-9]* before' "$log")
-  half=$(grep -c 'ends early, so' "$log")
-  retired=$(grep -c '^\\mfx@unyield' "$tmp/$c.aux")
-  firm=$(grep -c '^\\mfx@yieldfirm' "$tmp/$c.aux")
+  look "$c"; ok=$settled
   needed "$c" "\\def\\stalecase{$c}"
-  state="settled: $ok after $runs runs, errors: $errors, spills: $spills,"
-  state="$state early ends: $yields, less than half full: $half,"
-  state="$state retired: $retired, for good: $firm,"
-  state="$state unneeded:${unneeded:- none}"
+  settled=$ok
   limit=5
   case $c in
-    needed) [ "$yields" -ge 2 ] && [ "$retired$firm" = 00 ];;
-    linemate) limit=6; [ "$retired$firm" = 00 ];;
+    needed) [ "$yields" -ge 2 ] && [ "$retired$tries" = 00 ];;
+    linemate) limit=6; [ "$retired$tries" = 00 ];;
     *) [ "$half" = 0 ] && [ "$retired" -gt 0 ];;
   esac
-  if [ $? = 0 ] && [ "$ok$errors$spills" = yes00 ] && [ "$runs" -le $limit ] \
-     && [ -z "$unneeded" ]; then
-    echo "as expected: $c ($state)"
-  else
-    echo "UNEXPECTED:  $c ($state)"; status=1
-  fi
+  r=$?
+  [ "$r" = 0 ] && [ "$spills" = 0 ] && [ "$runs" -le "$limit" ] \
+    && [ -z "$unneeded" ]
+  report "$c" $? ", unneeded:${unneeded:- none}"
 done
 
 # The modes and the limit change nothing for this page: with no deferrable
@@ -100,22 +130,26 @@ for c in split defer off limit; do
     *) defs="\\def\\stalecase{stale}\\def\\stalepriority{$c}";;
   esac
   settle "$c" "$defs"
-  log=$tmp/$c.log
-  state="settled: $settled after $i runs, errors: $(grep -c '^!' "$log"),"
-  state="$state spills: $(grep -c '^marginfix-spill' "$log"),"
-  state="$state retired: $(grep -c '^\\mfx@unyield' "$tmp/$c.aux"),"
-  state="$state capped: $(grep -c '^\\mfx@noyield' "$tmp/$c.aux")"
-  if [ "$settled" = yes ] && [ "$i" -le 5 ] && [ "$(grep -c '^!' "$log")" = 0 ] \
-     && [ "$(grep -c '^marginfix-spill' "$log")" = 0 ] \
-     && [ "$(grep -c '^\\mfx@unyield' "$tmp/$c.aux")" -gt 0 ] \
-     && [ "$(grep -c '^\\mfx@noyield' "$tmp/$c.aux")" = 0 ] \
-     && diff <(pdftotext -layout "$tmp/$c.pdf" -) \
-             <(pdftotext -layout "$tmp/stale.pdf" -) > /dev/null; then
-    echo "as expected: $c ($state)"
-  else
-    echo "UNEXPECTED:  $c ($state)"; status=1
-  fi
+  look "$c"
+  [ "$runs" -le 5 ] && [ "$spills" = 0 ] && [ "$retired" -gt 0 ] \
+    && [ "$capped" = 0 ] && same "$c" stale
+  report "$c" $?
 done
+
+# A deferrable note that takes the room of the stale note gives way to it.
+for c in defer:4 split:5; do
+  j=giveway-${c%:*}
+  settle "$j" "\\def\\stalecase{stale}\\def\\stalepriority{${c%:*}}\\def\\staleltlen{${c#*:}}"
+  look "$j"
+  [ "$half" = 0 ] && [ "$retired" -gt 0 ] && [ "$spills" = 0 ]
+  report "$j" $?
+done
+
+# Two columns: dense, so it takes many runs, as without records retired.
+settle twocol '\def\stalecase{twocol}\def\staletwocolB{16}' test/stale 14
+look twocol
+[ "$retired" -gt 0 ] && [ "$spills" = 0 ]
+report twocol $?
 
 # XeTeX has no \vadjust pre: the notes are carried and no page ends early.
 if command -v xelatex > /dev/null; then
@@ -123,34 +157,79 @@ if command -v xelatex > /dev/null; then
     TEXINPUTS=".//:" xelatex -interaction=nonstopmode -output-directory="$tmp" \
       -jobname=xe '\def\stalecase{stale}\input{test/stale}' > /dev/null 2>&1
   done
-  state="errors: $(grep -c '^!' "$tmp/xe.log"),"
-  state="$state early ends: $(grep -c '^marginfix-yield: page=[0-9]* before' "$tmp/xe.log"),"
-  state="$state carried: $(grep -c '^marginfix-spill' "$tmp/xe.log"),"
-  state="$state retired: $(grep -c '^\\mfx@unyield' "$tmp/xe.aux")"
-  if [ "$(grep -c '^!' "$tmp/xe.log")" = 0 ] \
-     && [ "$(grep -c '^marginfix-yield: page=[0-9]* before' "$tmp/xe.log")" = 0 ] \
-     && [ "$(grep -c '^marginfix-spill' "$tmp/xe.log")" -gt 0 ] \
-     && [ "$(grep -c '^\\mfx@unyield' "$tmp/xe.aux")" = 0 ]; then
-    echo "as expected: xe ($state)"
-  else
-    echo "UNEXPECTED:  xe ($state)"; status=1
-  fi
+  settled=yes; look xe
+  [ "$yields" = 0 ] && [ "$spills" -gt 0 ] && [ "$retired" = 0 ]
+  report xe $?
 else
   echo "skipped:     xe (no xelatex)"
 fi
 
+# Parts of the check of what a page has room for.
+settle carried '\def\stalefitcase{carried}' test/stalefit
+look carried
+[ "$yields" = 1 ] && [ "$retired$tries" = 00 ] \
+  && [ "$(count '^marginfix-spill: .* intended$' "$log")" = 1 ] \
+  && [ "$spills" = 1 ]
+report carried $?
+
+defs='\def\stalefitcase{pieces}\def\stalefitupper{1-14}'
+settle pieces "$defs" test/stalefit
+settle piecesref "$defs" test/stalefit
+key=$(grep -o 'mfx@anchorpage{[^}]*}' "$tmp/pieces.aux" | tail -1 \
+  | sed 's/.*{\(.*\)}/\1/')
+printf '\\mfx@yield{%s}\n\\mfx@yieldht{%s}{40pt}\n' "$key" "$key" \
+  >> "$tmp/pieces.aux"
+settle pieces "$defs" test/stalefit
+look pieces
+[ -n "$key" ] && [ "$retired" = 1 ] && [ "$yields" = 0 ] && same pieces piecesref
+report pieces $?
+
+# A real edit: the notes of the first paragraph go, and come back, in the file
+# it is in, so that the notes after it keep their keys.
+defs='\def\stalecase{stale}\def\stalefront{test/stale-front-'
+settle edit "${defs}a}"
+settle edit "${defs}b}"
+settle editref "${defs}a}"
+settle edit "${defs}a}"
+look edit
+[ "$half" = 0 ] && [ "$spills" = 0 ] && same edit editref
+report edit $?
+settle edit "${defs}b}"
+settle edit "${defs}a}"
+look edit
+warned=$(tr -d '\n' < "$log" | grep -c 'which seems to.*fit there')
+[ "$warned" -gt 0 ] && [ "$half" = 1 ]
+report edit-twice $? ", warned: $warned"
+
+# A note that grows and shrinks keeps its key, and may be stale or not.
+defs='\def\stalecase{stale}'
+big='\def\stalegrow{\lipsum[1][1-12]\lipsum[1][1-12]}'
+settle grow "$defs"
+settle grow "$defs$big"
+settle growref "$defs$big"
+look grow
+if same grow growref; then r=0; else r=1; fi
+[ "$r" = 0 ]
+report grow $?
+settle grow "$defs"
+look grow
+[ "$half" = 0 ] && same grow stale
+report shrink $?
+
+# An older version reads the file without an error.
+settle older '\def\stalecase{stale}'
+TEXINPUTS=".//:" pdflatex -interaction=nonstopmode -output-directory="$tmp" \
+  -jobname=older '\def\stalecase{stale}\def\staleolder{}\input{test/stale}' \
+  > /dev/null 2>&1
+look older
+report older 0
+
 # A check that is wrong in every run must not keep the runs going.
 key=$(grep -o '^\\mfx@yield{[^}]*}' "$tmp/needed.aux" | tail -1 \
   | sed 's/^\\mfx@yield{\(.*\)}$/\1/')
-settle lie "\\def\\stalecase{needed}\\def\\stalelie{$key}"
-if [ "$settled" = yes ] && [ -n "$key" ] \
-   && [ "$(grep -c '^marginfix-spill' "$tmp/lie.log")" = 0 ] \
-   && grep -q "^\\\\mfx@yieldfirm{$key}" "$tmp/lie.aux" \
-   && diff <(pdftotext -layout "$tmp/lie.pdf" -) \
-           <(pdftotext -layout "$tmp/needed.pdf" -) > /dev/null; then
-  echo "as expected: lie (settled after $i runs, recorded for good)"
-else
-  echo "UNEXPECTED:  lie (settled: $settled after $i runs, key: $key)"
-  status=1
-fi
+settle lie "\\def\\stalecase{needed}\\def\\stalelie{$key}" test/stale 14
+look lie
+warned=$(tr -d '\n' < "$log" | grep -c 'which seems to.*fit there')
+[ -n "$key" ] && [ "$spills" = 0 ] && [ "$warned" -gt 0 ] && same lie needed
+report lie $? ", warned: $warned"
 exit $status

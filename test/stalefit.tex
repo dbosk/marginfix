@@ -1,0 +1,42 @@
+% Test of what the page of a stale record has room for (\marginnoteoverflow
+% {break}): the two parts of the check that test/stale.tex doesn't reach.
+% \stalefitcase chooses:
+%
+%   carried  a long note in the mode carry doesn't fit on the first page, and
+%            a short note after it, in the mode break, is recorded.  There is
+%            room below for the short note, but notes keep their order, so it
+%            can't go on that page: its record is needed.
+%   pieces   \blockmargin parts the margin of the first page in two.  The note
+%            above the block fills the upper piece, and the lower piece is
+%            free, so the last note fits there, although it wouldn't fit in the
+%            piece where the notes end.  Given a record of it (\stalefitkey and
+%            \stalefitht, the key and the height it would have), the record is
+%            stale and must be retired.
+%
+% test/stalecheck.sh runs the cases and checks them.
+\documentclass[a4paper]{memoir}
+\usepackage{lipsum}
+\usepackage{marginfix}
+\marginnoteoverflow{break}
+\footnotesinmargin
+\def\stalefitcarried{carried}
+\newcommand\fn[2][1-5]{\footnote{#2 \lipsum[1][#1]}}
+\newcommand\longnote{\begingroup\marginnoteoverflow{carry}\fn[1-14]{Z}\endgroup}
+\begin{document}
+\ifx\stalefitcase\stalefitcarried
+\lipsum[2][1-3]\fn[1-14]{A} \lipsum[3][1-3]\fn[1-12]{B} \lipsum[4][1-3]\longnote
+\lipsum[5][1-3]\fn[1-1]{K}
+
+\lipsum[6-12]
+\else
+\lipsum[1-2]\fn[\stalefitupper]{A}
+
+\blockmargin
+\lipsum[3]
+\unblockmargin
+
+\lipsum[5][1-3]\fn[1-1]{K}
+
+\lipsum[6-12]
+\fi
+\end{document}
