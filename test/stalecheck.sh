@@ -24,6 +24,8 @@
 #                   ever retired;
 #   pieces          a record of a note that fits in a lower piece of the
 #                   margin, below the piece where the notes end: retired;
+#   full            a record of a note whose line can't follow on the page in
+#                   any case: not retired, since that would only cost a run;
 #   edit            the first paragraph's notes taken out and put back, in
 #                   the file it is in, with the .aux file kept: the same text
 #                   as from no .aux file, the first time.  The second time the
@@ -31,6 +33,8 @@
 #                   warning;
 #   grow            the note of the stale record made too tall for its page,
 #                   and back, with the .aux file kept: as from no .aux file;
+#   hrun            the height of a recorded note changes, and nothing else:
+#                   the run asks for another;
 #   older           the .aux file read by a version that doesn't know its
 #                   records (\staleolder): no error;
 #   lie             needed, with the height of its second note taken to be
@@ -172,6 +176,18 @@ look carried
   && [ "$spills" = 1 ]
 report carried $?
 
+# A page with no room for another line: the break does nothing, so it stays.
+defs='\def\stalefitcase{full}'
+settle full "$defs" test/stalefit
+key=$(grep -o 'mfx@anchorpage{[^}]*}' "$tmp/full.aux" | tail -1 \
+  | sed 's/.*{\(.*\)}/\1/')
+printf '\\mfx@yield{%s}\n\\mfx@yieldht{%s}{40pt}\n' "$key" "$key" \
+  >> "$tmp/full.aux"
+settle full "$defs" test/stalefit
+look full
+[ -n "$key" ] && [ "$retired" = 0 ] && [ "$yields" = 1 ]
+report full $?
+
 defs='\def\stalefitcase{pieces}\def\stalefitupper{1-14}'
 settle pieces "$defs" test/stalefit
 settle piecesref "$defs" test/stalefit
@@ -215,6 +231,18 @@ settle grow "$defs"
 look grow
 [ "$half" = 0 ] && same grow stale
 report shrink $?
+
+# A height that changes asks for a run, even if nothing else does: a plain
+# rerun check would not see that the page may now have room.
+settle hrun '\def\stalecase{stale}'
+TEXINPUTS=".//:" pdflatex -interaction=nonstopmode -output-directory="$tmp" \
+  -jobname=hrun '\def\stalecase{stale}\def\stalegrowd{ And some more words for the note, to make it longer.}\input{test/stale}' \
+  > /dev/null 2>&1
+look hrun
+if cmp -s <(grep 'mfx@anchorpage' "$tmp/hrun.aux") <(grep 'mfx@anchorpage' "$tmp/hrun.aux.old") \
+   && ! cmp -s <(grep 'mfx@yieldht' "$tmp/hrun.aux") <(grep 'mfx@yieldht' "$tmp/hrun.aux.old") \
+   && grep -q 'may have changed' "$log"; then r=0; else r=1; fi
+report hrun $r
 
 # An older version reads the file without an error.
 settle older '\def\stalecase{stale}'

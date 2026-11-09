@@ -12,6 +12,9 @@
 %            piece where the notes end.  Given a record of it (\stalefitkey and
 %            \stalefitht, the key and the height it would have), the record is
 %            stale and must be retired.
+%   full     the text fills the first page but for half a line, so the note's
+%            line starts the next page in any case.  Given a record of it, the
+%            page ends for it, but no line could follow: nothing to retire.
 %
 % test/stalecheck.sh runs the cases and checks them.
 \documentclass[a4paper]{memoir}
@@ -19,7 +22,7 @@
 \usepackage{marginfix}
 \marginnoteoverflow{break}
 \footnotesinmargin
-\def\stalefitcarried{carried}
+\def\stalefitcarried{carried}\def\stalefitfull{full}
 \newcommand\fn[2][1-5]{\footnote{#2 \lipsum[1][#1]}}
 \newcommand\longnote{\begingroup\marginnoteoverflow{carry}\fn[1-14]{Z}\endgroup}
 \begin{document}
@@ -28,6 +31,12 @@
 \lipsum[5][1-3]\fn[1-1]{K}
 
 \lipsum[6-12]
+\else\ifx\stalefitcase\stalefitfull
+\noindent\rule{1pt}{\dimexpr\textheight-.5\baselineskip\relax}
+
+Line\fn[1-1]{K} of the note.
+
+\lipsum[6-8]
 \else
 \lipsum[1-2]\fn[\stalefitupper]{A}
 
@@ -38,5 +47,5 @@
 \lipsum[5][1-3]\fn[1-1]{K}
 
 \lipsum[6-12]
-\fi
+\fi\fi
 \end{document}

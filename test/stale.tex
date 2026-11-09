@@ -37,7 +37,8 @@
 % test/stale-front-b.tex has no notes in it: going from one to the other is
 % an edit that keeps the keys of the notes in this file.
 %
-% \stalegrow, if defined, is added to the text of the note J.
+% \stalegrow, if defined, is added to the text of the note J, and \stalegrowd
+% to that of the note G, whose page ends early for it in the case stale.
 %
 % \staleolder, if defined, undefines what marginfix's .aux records use and
 % an older version doesn't know, as such a version would read the file.
@@ -95,6 +96,7 @@
   \marginpar{\footnotesize\marginnotedeferrable LT \staleltc=\staleltlen\relax
     \loop\ifnum\staleltc>0 \lipsum[1][1-6] \advance\staleltc by -1 \repeat}\fi}
 \providecommand\stalegrow{}
+\providecommand\stalegrowd{}
 \ifx\stalecase\stalelinemate
   \def\matefn{\fn{X \lipsum[1][1-10]}}
 \else
@@ -109,7 +111,7 @@
 \vspace*{\staleA\baselineskip}
 \lipsum[2][1-3]\fn{A} \lipsum[3][1-3]\fn{B} \lipsum[4][1-3]\fn{C}
 \lipsum[5][1-3]\fn{D} \lipsum[6][1-3]\fn{E} \lipsum[7][1-3]\fn{F}
-\lipsum[8][1-3]\fn{G}\par
+\lipsum[8][1-3]\fn{G\stalegrowd}\par
 \fi
 
 \lipsum[13-14]
