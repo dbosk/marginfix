@@ -15,7 +15,7 @@
            [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3794}
+\CheckSum{3768}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -111,6 +111,9 @@
 % \changes{v1.6}{2026/11/09}
 %       {(Daniel Bosk) A line that calls out a note in a paragraph may end a
 %        page again where the paragraph has no penalty of its own after it.}
+% \changes{v1.6}{2026/11/09}
+%       {(Daniel Bosk) Wrap \cs{@xympar} instead of replacing the kernel's,
+%        and say where \cs{nopagebreak} goes to keep a line with a note.}
 % \changes{v1.6}{2026/10/22}
 %       {(Daniel Bosk) Keep the margin beside a float placed in the text
 %        empty when it has a side caption or says
@@ -827,45 +830,34 @@
 %    \end{macrocode}
 % \end{macros}
 %
-% \begin{macros}{\MFX@calloutbreak,\MFX@kernel@xympar}
+% \begin{macros}{\MFX@calloutbreak,\MFX@orig@xympar}
 % The kernel's \cs{@xympar} calls out the note with a \cs{vadjust}
 % (\cs{end@float}); we add a second one, with the kern, after it in a
-% paragraph, so that it follows the callout's penalties after the line.  We
-% change \cs{@xympar} at the start of the document, only if it is still the
-% kernel's, and say so if it isn't.
+% paragraph, so that it follows the callout's penalties after the line.
+% We wrap \cs{@xympar} as it is at the start of the document, whoever
+% defined it, rather than copy the kernel's, so that a change in the kernel
+% doesn't turn this off.  The callout ends with \cs{@esphack}, which, after
+% a space before the note, ignores the spaces after it with
+% \cs{ignorespaces}; our \cs{vadjust} stops that, so we ignore them again.
+%
+% A \cs{nopagebreak} written before the \cs{marginpar} in the same line
+% comes before the callout and its kern, so it doesn't keep the line from
+% ending a page, as with the kernel alone; written after the
+% \cs{marginpar}, it comes between the kern and the glue, and does.
 %    \begin{macrocode}
 \def\MFX@calloutbreak{%
+  \let\MFX@next\relax
   \ifhmode
     \ifnum\@floatpenalty=-\@Mii
       \vadjust{\kern\z@}%
+      \ifdim\@savsk>\z@\let\MFX@next\ignorespaces\fi
     \fi
-  \fi}
-\def\MFX@kernel@xympar{%
-  \ifnum\@floatpenalty <\z@\@cons\@currlist\@marbox\fi
-  \setbox\@tempboxa
-    \color@vbox
-      \vbox \bgroup
-  \end@float
-  \@ignorefalse
-  \@esphack
-}
+  \fi
+  \MFX@next}
 \AtBeginDocument{%
-  \ifx\@xympar\MFX@kernel@xympar
-    \def\@xympar{%
-      \ifnum\@floatpenalty <\z@\@cons\@currlist\@marbox\fi
-      \setbox\@tempboxa
-        \color@vbox
-          \vbox \bgroup
-      \end@float
-      \MFX@calloutbreak
-      \@ignorefalse
-      \@esphack}%
-  \else
-    \PackageWarningNoLine{marginfix}{%
-      \string\@xympar\space isn't the kernel's, so a line\MessageBreak
-      that calls out a margin note in a paragraph\MessageBreak
-      can end a page only where the paragraph\MessageBreak
-      has a penalty of its own after it}%
+  \ifdefined\@xympar
+    \let\MFX@orig@xympar\@xympar
+    \def\@xympar{\MFX@orig@xympar\MFX@calloutbreak}%
   \fi}
 %    \end{macrocode}
 % \end{macros}
