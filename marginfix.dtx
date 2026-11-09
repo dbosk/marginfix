@@ -15,7 +15,7 @@
            [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{4560}
+\CheckSum{4584}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -1459,6 +1459,11 @@
 % so that it lasts as long as the callout keeps its key.  In the kernel's
 % check at the end of the run (as for \cs{mfx@anchorpage}), a line whose
 % state differs from the state at the start of the run asks for another run.
+%
+% An older version of the package, or a document that stops using it, may read
+% the \texttt{.aux} file of this one (a repository with a copy of an older
+% version, say), so the file says what to do with what such a version doesn't
+% know.
 %    \begin{macrocode}
 \def\MFX@fit@callout{%
   \expandafter\xdef\csname mfx@co@\the\mfx@callid\endcsname{\mfx@overflow}%
@@ -1510,6 +1515,15 @@
       {\csname mfx@uc@\mfx@key\endcsname}}%
   \fi
 }
+\AtBeginDocument{%
+  \if@filesw
+    \immediate\write\@auxout{\string\providecommand
+      \string\mfx@unyield[2]{}}%
+    \immediate\write\@auxout{\string\providecommand
+      \string\mfx@yieldtries[2]{}}%
+    \immediate\write\@auxout{\string\providecommand
+      \string\mfx@yieldht[2]{}}%
+  \fi}
 %    \end{macrocode}
 % \end{macros}
 %
