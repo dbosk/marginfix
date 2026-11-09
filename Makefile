@@ -20,7 +20,7 @@ ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf anchorpage.pdf anchorkeys.pdf priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
-	overflow-test midfloat-test
+	overflow-test midfloat-test calloutbreak-test
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
@@ -118,6 +118,13 @@ modechange.pdf modechange-warn.pdf: marginfix.sty test/modechange.tex \
 .PHONY: overflow-test
 overflow-test:marginfix.sty
 	test/overflowcheck.sh
+
+# A line that calls out a note in a paragraph may end a page, and a first line
+# with a note isn't left alone at the foot when the club penalty forbids it
+# (test/calloutbreak.tex); needs pdftotext.
+.PHONY: calloutbreak-test
+calloutbreak-test:marginfix.sty
+	test/calloutbreakcheck.sh
 
 # A float in the text with a side caption keeps the margin beside it empty
 # (test/midfloat.tex); needs pdftotext.
