@@ -1,0 +1,24 @@
+% A line that calls out a margin note in the middle of a paragraph may end a
+% page, as without marginfix, while the paragraph's own penalties still
+% decide where it has them (test/calloutbreakcheck.sh checks the pages).
+% Each line of text is forced (\break), the page holds 20 of them, and
+% nothing else on the page has a cost: page 1 must end with line L20,
+% which calls out a note.  On page 3, a paragraph of 19 lines is followed by
+% one whose first line calls out a note, with \clubpenalty 10000: that line
+% must not stay alone at the foot, so page 3 ends with F19.
+\documentclass{article}
+\usepackage{marginfix}
+\setlength\topskip{10pt}
+\setlength\textheight{\dimexpr19\baselineskip+\topskip\relax}
+\pagestyle{empty}
+\clubpenalty=10000 \widowpenalty=0 \interlinepenalty=0
+\newcount\n
+\def\lines#1#2#3{\n=0 \loop\advance\n by 1
+  #1\ifnum\n<10 0\fi\the\n\ text\ifnum\n=#3\marginpar{note}\fi
+  \ifnum\n<#2 \break\repeat\par}
+\begin{document}
+\noindent\lines{L}{30}{20}
+\clearpage
+\noindent\lines{F}{19}{0}
+\noindent\lines{C}{5}{1}
+\end{document}
