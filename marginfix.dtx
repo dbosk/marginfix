@@ -403,8 +403,12 @@
 % So that the runs can't go back and forth for ever, a note is retired at most
 % twice.  After that its break stands, and if the page has room for the note
 % we warn, naming the note: to get rid of the break, remove the
-% \texttt{.aux} file; a line added or removed before the note in its file also
-% makes a new record of it.
+% \texttt{.aux} file.  A line added or removed before the note in its file
+% usually makes a new record of it too, but not if the note's key is then the
+% one another note had: it takes over that note's record and count.  (Removing
+% the \texttt{.aux} file doesn't help if a clean build uses up the note's
+% retirements too, which takes a note whose height depends on the page it lands
+% on.)
 %
 % All this takes runs: the run that finds a note that doesn't fit, the next,
 % whose page ends early, one that sees that the record is stale, one more for
