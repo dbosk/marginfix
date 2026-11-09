@@ -11,6 +11,11 @@
 #   all four        every break that stands is needed: with all the records
 #                   of its note taken out of the settled .aux file, the runs
 #                   settle on the same text, page by page;
+#   split, defer, off, limit  stale under these \marginnotepriority modes and
+#                   a \marginnoteyieldlimit of 30 lines, less than the stale
+#                   page leaves: as stale, and nothing capped;
+#   xe              stale under XeLaTeX, where no page can end early: the
+#                   notes are carried, and nothing is retired;
 #   lie             needed, with the height of the note of its second break
 #                   written wrong in every run (\stalelie): it settles, its
 #                   record ends up for good (\mfx@yieldfirm), and the text is
@@ -85,6 +90,54 @@ for c in stale article needed linemate; do
     echo "UNEXPECTED:  $c ($state)"; status=1
   fi
 done
+
+# The modes and the limit change nothing for this page: with no deferrable
+# notes the priority modes place the notes alike, and a page that ends early
+# for a note that fits is retired, not capped.
+for c in split defer off limit; do
+  case $c in
+    limit) defs='\def\stalecase{stale}\def\stalelimit{30}';;
+    *) defs="\\def\\stalecase{stale}\\def\\stalepriority{$c}";;
+  esac
+  settle "$c" "$defs"
+  log=$tmp/$c.log
+  state="settled: $settled after $i runs, errors: $(grep -c '^!' "$log"),"
+  state="$state spills: $(grep -c '^marginfix-spill' "$log"),"
+  state="$state retired: $(grep -c '^\\mfx@unyield' "$tmp/$c.aux"),"
+  state="$state capped: $(grep -c '^\\mfx@noyield' "$tmp/$c.aux")"
+  if [ "$settled" = yes ] && [ "$i" -le 5 ] && [ "$(grep -c '^!' "$log")" = 0 ] \
+     && [ "$(grep -c '^marginfix-spill' "$log")" = 0 ] \
+     && [ "$(grep -c '^\\mfx@unyield' "$tmp/$c.aux")" -gt 0 ] \
+     && [ "$(grep -c '^\\mfx@noyield' "$tmp/$c.aux")" = 0 ] \
+     && diff <(pdftotext -layout "$tmp/$c.pdf" -) \
+             <(pdftotext -layout "$tmp/stale.pdf" -) > /dev/null; then
+    echo "as expected: $c ($state)"
+  else
+    echo "UNEXPECTED:  $c ($state)"; status=1
+  fi
+done
+
+# XeTeX has no \vadjust pre: the notes are carried and no page ends early.
+if command -v xelatex > /dev/null; then
+  for i in 1 2 3 4; do
+    TEXINPUTS=".//:" xelatex -interaction=nonstopmode -output-directory="$tmp" \
+      -jobname=xe '\def\stalecase{stale}\input{test/stale}' > /dev/null 2>&1
+  done
+  state="errors: $(grep -c '^!' "$tmp/xe.log"),"
+  state="$state early ends: $(grep -c '^marginfix-yield: page=[0-9]* before' "$tmp/xe.log"),"
+  state="$state carried: $(grep -c '^marginfix-spill' "$tmp/xe.log"),"
+  state="$state retired: $(grep -c '^\\mfx@unyield' "$tmp/xe.aux")"
+  if [ "$(grep -c '^!' "$tmp/xe.log")" = 0 ] \
+     && [ "$(grep -c '^marginfix-yield: page=[0-9]* before' "$tmp/xe.log")" = 0 ] \
+     && [ "$(grep -c '^marginfix-spill' "$tmp/xe.log")" -gt 0 ] \
+     && [ "$(grep -c '^\\mfx@unyield' "$tmp/xe.aux")" = 0 ]; then
+    echo "as expected: xe ($state)"
+  else
+    echo "UNEXPECTED:  xe ($state)"; status=1
+  fi
+else
+  echo "skipped:     xe (no xelatex)"
+fi
 
 # A check that is wrong in every run must not keep the runs going.
 key=$(grep -o '^\\mfx@yield{[^}]*}' "$tmp/needed.aux" | tail -1 \

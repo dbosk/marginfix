@@ -20,6 +20,10 @@
 %            so the record is needed and must not be retired, not even
 %            once.
 %
+% \stalepriority, if defined, is a \marginnotepriority mode, and \stalelimit a
+% \marginnoteyieldlimit in lines: the stale record must be retired under each
+% of them too, and under a limit its page must not be capped for it.
+%
 % \stalelie, if defined, is the key of a note whose height is written wrong
 % (1pt) to the .aux file at the end of each run, after marginfix's own record
 % of it, so that the check of its page is wrong in every run: the runs must
@@ -36,6 +40,8 @@
 \usepackage{lipsum}
 \usepackage{marginfix}
 \marginnoteoverflow{break}
+\ifdefined\stalepriority\marginnotepriority{\stalepriority}\fi
+\ifdefined\stalelimit\marginnoteyieldlimit{\stalelimit\baselineskip}\fi
 \ifx\stalecase\stalearticlecase
   \newcommand\fn[1]{\marginpar{\footnotesize #1 \lipsum[1][1-2]}}
 \else
