@@ -1,0 +1,127 @@
+% Test of records that a page no longer needs (\marginnoteoverflow{break}).
+%
+% Two paragraphs dense with long notes in the margin, the second further on.
+% A build from no .aux file records, in the same run, the first note that
+% doesn't fit on each page, each from the layout before any page ends
+% early.  Once the first paragraph's page ends early, the text after it
+% moves, and the second record can end a page a few lines from its top,
+% where its note would fit.  \stalecase chooses:
+%
+%   stale    memoir, its footnotes in the margin: the second record must be
+%            retired, so that no page ends early for a note that fits, and
+%            the page fills;
+%   article  the same in the article class, with \marginpar;
+%   twoside  stale, two-sided, where the notes of even pages have the other
+%            margin;
+%   twocol   the same text in two columns, with \staletwocolB lines of space
+%            before the second paragraph;
+%   needed   memoir, with more space before the first paragraph: both
+%            records are needed (each page that ends early is full of
+%            notes, to the foot of its margin), and must stay (22 lines:
+%            since a line that calls out a note may end a page, the 16 lines
+%            this had left one page that needed a record);
+%   linemate stale, with a long note called out on the same line just
+%            before the note of the second record: the page has room for
+%            that note alone, but not for both, which come to it together,
+%            so the record is needed and must not be retired, not even
+%            once.
+%
+% \stalepriority, if defined, is a \marginnotepriority mode, and \stalelimit a
+% \marginnoteyieldlimit in lines: the stale record must be retired under each
+% of them too, and under a limit its page must not be capped for it.
+%
+% \staleltlen, if defined, is the length of a deferrable note called out at the
+% note H, in sixes of sentences: with \stalepriority defer or split, the note
+% J still fits on the stale page, since the deferrable note gives way to it.
+%
+% \stalefront, if defined, is the file with the first paragraph, instead of
+% the text below.  test/stale-front-a.tex has the same paragraph, and
+% test/stale-front-b.tex has no notes in it: going from one to the other is
+% an edit that keeps the keys of the notes in this file.
+%
+% \stalegrow, if defined, is added to the text of the note J, and \stalegrowd
+% to that of the note G, whose page ends early for it in the case stale.
+%
+% \staleolder, if defined, undefines what marginfix's .aux records use and
+% an older version doesn't know, as such a version would read the file.
+%
+% \stalelie, if defined, is the key of a note whose height is taken to be 1pt
+% in every run, whatever the .aux file says, so that the check of its page is
+% wrong every time: the runs must settle all the same, with the page ending
+% early for the note and a warning.
+%
+% test/stalecheck.sh runs the cases and checks them.
+\def\stalememoir{stale}\def\stalearticlecase{article}
+\def\staleneeded{needed}\def\stalelinemate{linemate}
+\def\staletwoside{twoside}\def\staletwocol{twocol}
+\ifx\stalecase\stalearticlecase
+  \documentclass[a4paper]{article}
+\else\ifx\stalecase\staletwoside
+  \documentclass[a4paper,twoside]{memoir}
+\else\ifx\stalecase\staletwocol
+  \documentclass[a4paper,twocolumn]{memoir}
+\else
+  \documentclass[a4paper]{memoir}
+\fi\fi\fi
+\usepackage{lipsum}
+\usepackage{marginfix}
+\marginnoteoverflow{break}
+\ifdefined\stalepriority\marginnotepriority{\stalepriority}\fi
+\ifdefined\stalelimit\marginnoteyieldlimit{\stalelimit\baselineskip}\fi
+\ifx\stalecase\stalearticlecase
+  \newcommand\fn[1]{\marginpar{\footnotesize #1 \lipsum[1][1-2]}}
+\else
+  \footnotesinmargin
+  \newcommand\fn[1]{\footnote{#1 \lipsum[1][1-5]}}
+\fi
+\ifx\stalecase\staleneeded
+  \def\staleA{22}\def\staleB{12}
+\else
+  \def\staleA{0}\def\staleB{24}
+\fi
+\ifx\stalecase\staletwocol
+  \def\staleB{\staletwocolB}
+\fi
+\makeatletter
+\ifdefined\staleolder
+  \let\mfx@yieldht\@undefined
+  \let\mfx@unyield\@undefined
+  \let\mfx@yieldtries\@undefined
+\fi
+\ifdefined\stalelie
+  \def\mfx@yieldht#1#2{}
+  \expandafter\def\csname mfx@yh@\stalelie\endcsname{1pt}
+\fi
+\makeatother
+\newcount\staleltc
+\newcommand\stalelt{\ifdefined\staleltlen
+  \marginpar{\footnotesize\marginnotedeferrable LT \staleltc=\staleltlen\relax
+    \loop\ifnum\staleltc>0 \lipsum[1][1-6] \advance\staleltc by -1 \repeat}\fi}
+\providecommand\stalegrow{}
+\providecommand\stalegrowd{}
+\ifx\stalecase\stalelinemate
+  \def\matefn{\fn{X \lipsum[1][1-10]}}
+\else
+  \def\matefn{}
+\fi
+\begin{document}
+\ifdefined\stalefront
+  \input{\stalefront}
+\else
+\lipsum[1-3]
+
+\vspace*{\staleA\baselineskip}
+\lipsum[2][1-3]\fn{A} \lipsum[3][1-3]\fn{B} \lipsum[4][1-3]\fn{C}
+\lipsum[5][1-3]\fn{D} \lipsum[6][1-3]\fn{E} \lipsum[7][1-3]\fn{F}
+\lipsum[8][1-3]\fn{G\stalegrowd}\par
+\fi
+
+\lipsum[13-14]
+
+\vspace*{\staleB\baselineskip}
+\lipsum[9][1-3]\stalelt\fn{H} \lipsum[10][1-3]\fn{I} \lipsum[11][1-3]\matefn\fn{J\stalegrow}
+\lipsum[12][1-3]\fn{K} \lipsum[2][1-3]\fn{L} \lipsum[3][1-3]\fn{M}
+\lipsum[4][1-3]\fn{N}\par
+
+\lipsum[15-20]
+\end{document}

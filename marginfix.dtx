@@ -15,7 +15,7 @@
            [2026/10/22 v1.6 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{4174}
+\CheckSum{4627}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -124,6 +124,12 @@
 %        the note is carried, logged as \texttt{capped} and warned about.
 %        Decided from the height of the note's callout when the note is
 %        found not to fit, and checked again when a page ends early.}
+% \changes{v1.6}{2026/11/09}
+%       {(Daniel Bosk) Retire the record of a note that a page ended early
+%        for, when that page had room for the note after all, at most twice
+%        per note: a break recorded in one layout no longer ends a page a
+%        few lines from its top after the breaks above it have moved the
+%        text.}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -387,9 +393,39 @@
 % |marginfix-yield: page=|\meta{page}| before=|\meta{file}|:|\meta{line}
 % to the log.
 % The record of a note stays as long as its callout keeps its key, that is,
-% until the source before it in the same file changes; so a page may keep
-% ending early after a change that made it unnecessary, until such an edit
-% or a run without the \texttt{.aux} file.
+% until the source before it in the same file changes, or until a page that
+% ends early for the note turns out to have had room for it.  That happens
+% when the text moves after the record was made, say when other pages above
+% end early too: the notes of a whole passage are recorded in the same run,
+% each from the layout before any of the breaks, so a break can end up a few
+% lines from the top of a page whose margin is nearly empty.  The run that
+% sees such a page retires the record (writing \cs{mfx@unyield}\marg{key} to
+% the \texttt{.aux} file, and a line
+% |marginfix-yield: page=|\meta{page}| retires the break: the note fits|
+% to the log), and the page fills in the runs after.  (In the run that retires
+% a record, the page has still ended early, so the warning above is printed for
+% it one last time.)  If the note doesn't fit in a later run, since the text has
+% moved or the page turned out to be fuller than it looked, it is recorded anew.
+% So that the runs can't go back and forth for ever, a note is retired at most
+% twice.  After that its break stands, and if the page has room for the note
+% we warn, naming the note: to get rid of the break, remove the
+% \texttt{.aux} file.  A line added or removed before the note in its file
+% usually makes a new record of it too, but not if the note's key is then the
+% one another note had: it takes over that note's record and count.  (Removing
+% the \texttt{.aux} file doesn't help if a clean build uses up the note's
+% retirements too, which takes a note whose height depends on the page it lands
+% on.)
+%
+% All this takes runs: the run that finds a note that doesn't fit, the next,
+% whose page ends early, one that sees that the record is stale, one more for
+% the page to fill, and one for the anchor pages to settle, and each passage
+% that moves can start this again.  So a document dense with notes needs more
+% runs than the 5 that \texttt{latexmk} allows by default.  Set
+% |$max_repeat| to 10 in a |latexmkrc| for such a document.  Past the limit,
+% \texttt{latexmk} stops with an error (status 12), and when it is run again it
+% says that everything is up to date and keeps the PDF as it is, not settled;
+% force it with |latexmk -g|, or run \LaTeX\ until it no longer asks for a
+% rerun.
 %
 % Every ordinary note that is still carried to a later page is logged when
 % it is set, one line each:
@@ -1411,9 +1447,25 @@
 %
 % It settles, without going back and forth: a recorded note is recorded
 % again by the callout that breaks for it, so the break stays as long as the
-% callout has the same key, and the breaks only add up.  A break that turns
-% out not to be needed (a later run sees the note at the top of its page
-% anyway) does nothing, since \TeX\ drops a penalty at the top of a page.
+% callout has the same key.  A break that a later run finds at the top of its
+% page anyway does nothing, since \TeX\ drops a penalty at the top of a page.
+% Elsewhere an unneeded break does something: it ends a page that had room
+% for the note.  A record is made from the layout of one run, and the
+% records of the pages of a dense passage are made in the same run, so once
+% the breaks above a note have moved the text, its break can end a page a few
+% lines from the top.  So a page that ends early for a note that, as the
+% build of that page shows, would have fitted in its margin retires the
+% note's record (\cs{MFX@fit@stale} below).  If the note is found not to fit
+% in a later run, it is recorded anew.  We can't tell whether that is since
+% the document was edited, or the check was wrong, and a wrong check could go
+% on for ever; so a note is retired at most twice (\cs{MFX@fit@maxretire}),
+% and then keeps its break, with a warning if its page has room for it.  Then
+% the breaks only add up, but for at most two retirements each, and the runs
+% settle.  Why twice: once, and a text edited and put back (the first break of
+% a passage goes and comes back, so the note after it has to be recorded and
+% retired again) leaves the stale page for good; that is the case
+% \texttt{edit} of \texttt{test/stalecheck.sh}.  More times cost more runs if
+% the check is wrong.
 %
 % \begin{macros}{\MFX@fit@note}
 % In the output routine, when a note arrives, we copy what we know of its
@@ -1443,34 +1495,175 @@
     \csname mfx@cc@\the\mfx@placeid\endcsname\relax
   \expandafter\global\expandafter\let
     \csname mfx@sp@\number\@currbox\endcsname\relax
+  \MFX@fit@noteheight
 }
 %    \end{macrocode}
 % \end{macros}
 %
-% \begin{macros}{\MFX@fit@callout,\mfx@yield}
+% \begin{macros}{\MFX@fit@callout,\mfx@yield,\mfx@unyield,
+%     \mfx@yieldtries,\MFX@fit@state,\MFX@fit@retired}
 % At callout time we keep the mode under the note's number
 % (\cs{mfx@co@}\meta{number}), and if the mode is \texttt{break} and a
 % previous run recorded the note, we end the page here and record the note
 % again, unless a previous run found that ending the page here leaves too
-% much of it empty (\cs{MFX@fit@ifheld} below).  The record in the
-% \texttt{.aux} file is \cs{mfx@yield}\marg{key}.
-% Read at the start of the run, it defines |\mfx@y@|\meta{key}.  In the
-% kernel's check at the end of the run (as for \cs{mfx@anchorpage}), a key
-% that wasn't known at the start asks for another run.
+% much of it empty (\cs{MFX@fit@ifheld} below), or retired the record.
+%
+% A note's record in the \texttt{.aux} file is one of two, and the last
+% one for a key in the file counts, since a run writes the record of the
+% callout first and changes it later, when a page is built:
+% \begin{itemize}
+% \item \cs{mfx@yield}\marg{key}: end the page before the callout's line;
+% \item \cs{mfx@unyield}\marg{key}\marg{n}: the record was retired, for the
+%   $n$th time, by a page that turned out to have room for the note
+%   (\cs{MFX@fit@stale}); don't end the page.
+% \end{itemize}
+% Read at the start of the run, they set the state |\mfx@ys@|\meta{key} to
+% |y| or |u|, and |\mfx@y@|\meta{key}, which says that the callout ends its
+% page, for |y|.  \cs{mfx@yieldtries}\marg{key}\marg{n} keeps the number of
+% retirements of a note that has been recorded again (|\mfx@uc@|\meta{key}).
+% The callout writes its state again (\cs{MFX@yield}, \cs{MFX@fit@retired}),
+% so that it lasts as long as the callout keeps its key.  In the kernel's
+% check at the end of the run (as for \cs{mfx@anchorpage}), a line whose
+% state differs from the state at the start of the run asks for another run.
+%
+% An older version of the package, or a document that stops using it, may read
+% the \texttt{.aux} file of this one (a repository with a copy of an older
+% version, say), so the file says what to do with what such a version doesn't
+% know.
 %    \begin{macrocode}
 \def\MFX@fit@callout{%
   \expandafter\xdef\csname mfx@co@\the\mfx@callid\endcsname{\mfx@overflow}%
   \ifx\mfx@overflow\MFX@break
     \MFX@fit@ifheld{\mfx@key}%
       {\MFX@fit@held}%
-      {\@ifundefined{mfx@y@\mfx@key}{}{\MFX@yield}}%
+      {\expandafter\ifx\csname mfx@ys@\mfx@key\endcsname\relax
+       \else
+         \if u\csname mfx@ys@\mfx@key\endcsname
+           \MFX@fit@retired
+         \else
+           \MFX@yield
+         \fi
+       \fi}%
   \fi
 }
-\def\mfx@yield#1{%
+% \MFX@fit@state{<key>}{<state>}: a record read from the .aux file.
+\def\MFX@fit@state#1#2{%
   \ifx\@newl@bel\@testdef
-    \@ifundefined{mfx@y@#1}{\@tempswatrue}{}%
+    \expandafter\ifx\csname mfx@ys@#1\endcsname\relax
+      \@tempswatrue
+    \else
+      \if#2\csname mfx@ys@#1\endcsname\else\@tempswatrue\fi
+    \fi
   \else
-    \global\@namedef{mfx@y@#1}{}%
+    \global\@namedef{mfx@ys@#1}{#2}%
+    \if u#2%
+      \global\expandafter\let\csname mfx@y@#1\endcsname\relax
+    \else
+      \global\@namedef{mfx@y@#1}{}%
+    \fi
+  \fi
+}
+\def\mfx@yield#1{\MFX@fit@state{#1}y}
+\def\mfx@unyield#1#2{%
+  \MFX@fit@state{#1}u%
+  \ifx\@newl@bel\@testdef\else
+    \global\@namedef{mfx@uc@#1}{#2}%
+  \fi
+}
+\def\mfx@yieldtries#1#2{%
+  \ifx\@newl@bel\@testdef\else
+    \global\@namedef{mfx@uc@#1}{#2}%
+  \fi
+}
+\def\MFX@fit@retired{%
+  \if@filesw
+    \immediate\write\@auxout{\string\mfx@unyield{\mfx@key}%
+      {\csname mfx@uc@\mfx@key\endcsname}}%
+  \fi
+}
+\AtBeginDocument{%
+  \if@filesw
+    \immediate\write\@auxout{\string\providecommand
+      \string\mfx@unyield[2]{}}%
+    \immediate\write\@auxout{\string\providecommand
+      \string\mfx@yieldtries[2]{}}%
+    \immediate\write\@auxout{\string\providecommand
+      \string\mfx@yieldht[2]{}}%
+  \fi}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\mfx@yieldht,\MFX@fit@noteheight,\MFX@fit@twoheight}
+% To see whether a note would have fitted, the page that ended for it needs
+% its height, but the note is set on the next page.  So when a note whose
+% callout ends a page arrives in the output routine (\cs{MFX@fit@noteheight},
+% from \cs{MFX@fit@note}), we write \cs{mfx@yieldht}\marg{key}\marg{height}:
+% the height of the note, the larger of its two boxes, and of the notes
+% called out on the same line before it, each with \cs{marginparpush}, since
+% these come to the page with it (they are the notes in the margin list at
+% the same height of callout).  The run that first records the note writes
+% it too, from the notes of the page it is carried from
+% (\cs{mfx@fit@pagelist}, kept before the build), so that the next run can
+% check its page already.  It is read at the start of the next run
+% (|\mfx@yh@|\meta{key}).  A height that changes asks for another run, since
+% the next page build may then find that the note fits, or no longer does.  A
+% record from before there were heights has none, and isn't retired until a run
+% has written one.
+%    \begin{macrocode}
+\def\mfx@yieldht#1#2{%
+  \ifx\@newl@bel\@testdef
+    \def\reserved@a{#2}%
+    \expandafter\ifx\csname mfx@yh@#1\endcsname\reserved@a\else
+      \@tempswatrue
+    \fi
+  \else
+    \global\@namedef{mfx@yh@#1}{#2}%
+  \fi
+}
+\def\MFX@fit@noteheight{%
+  \edef\reserved@a{\csname mfx@bk@\number\@currbox\endcsname}%
+  \ifx\reserved@a\@empty\else
+    \expandafter\ifx\csname mfx@ys@\reserved@a\endcsname\relax\else
+    \if y\csname mfx@ys@\reserved@a\endcsname
+      \MFX@fit@lineheight\@currbox\@marbox\mfx@ypos\mfx@marginlist
+    \fi\fi
+  \fi
+}
+% \MFX@fit@lineheight<box><box><ypos macro><list>: write the height of a
+% note, with the notes in <list> before it called out at the same height,
+% once in a run.  The note's key is in \reserved@a.
+\def\MFX@fit@lineheight#1#2#3#4{%
+  \begingroup
+    \MFX@fit@twoheight{#1}{#2}%
+    \@tempswatrue
+    \def\mfx@build@note##1##2##3{%
+      \ifnum\number##1=\number#1\relax\@tempswafalse\fi
+      \if@tempswa
+        \def\reserved@b{##3}%
+        \ifx\reserved@b#3%
+          \dimen@ii\dimen@
+          \MFX@fit@twoheight{##1}{##2}%
+          \advance\dimen@\dimen@ii
+          \advance\dimen@\marginparpush
+        \fi
+      \fi}%
+    \let\mfx@build@skip\@gobble
+    \let\mfx@build@clear\relax
+    #4%
+    \if@filesw
+      \expandafter\ifx\csname mfx@yw@\reserved@a\endcsname\relax
+        \expandafter\gdef\csname mfx@yw@\reserved@a\endcsname{}%
+        \immediate\write\@auxout{\string\mfx@yieldht{\reserved@a}%
+          {\the\dimen@}}%
+      \fi
+    \fi
+  \endgroup
+}
+% \MFX@fit@twoheight<box><box>: \dimen@ := the larger height and depth.
+\def\MFX@fit@twoheight#1#2{%
+  \dimen@\dimexpr\ht#1+\dp#1\relax
+  \ifdim\dimexpr\ht#2+\dp#2\relax>\dimen@
+    \dimen@\dimexpr\ht#2+\dp#2\relax
   \fi
 }
 %    \end{macrocode}
@@ -1592,7 +1785,7 @@
   \expandafter\xdef\csname mfx@yk@\the\Mfx@yield@count\endcsname{%
     \mfx@key}%
   \if@filesw
-    \immediate\write\@auxout{\string\mfx@yield{\mfx@key}}%
+    \MFX@fit@writeyield\mfx@key
   \fi
   \ifvmode
     \MFX@yield@break
@@ -1659,29 +1852,18 @@
   \fi
 }
 \AtBeginDocument{\output\expandafter{\expandafter\MFX@fit@peek\the\output}}
+\global\let\mfx@fit@ended\@empty
 \def\MFX@fit@page{%
   \setbox\@tempboxa\vbox{\unvcopy\@outputbox}%
+  \global\let\mfx@fit@ended\@empty
   \ifnum\mfx@fit@lastkern>\MFX@yield@base\relax
     \count@\numexpr\mfx@fit@lastkern-\MFX@yield@base\relax
     \wlog{marginfix-yield: page=\the\c@page\space
       before=\csname mfx@yl@\the\count@\endcsname}%
-    \ifdim\dimexpr\@colroom-\ht\@tempboxa\relax>\mfx@yieldlimit
-      \if@filesw
-        \immediate\write\@auxout{\string\mfx@noyieldfirm
-          {\csname mfx@yk@\the\count@\endcsname}%
-          {\the\dimexpr\@colroom-\ht\@tempboxa\relax}}%
-      \fi
-      \begingroup
-        \def\mfx@build@note##1##2##3{\MFX@fit@capnote##1}%
-        \let\mfx@build@skip\@gobble
-        \let\mfx@build@clear\relax
-        \mfx@marginlist
-      \endgroup
-      \wlog{marginfix-yield: page=\the\c@page\space leaves
-        \the\dimexpr\@colroom-\ht\@tempboxa\relax\space empty, more
-        than \string\marginnoteyieldlimit; the note is carried in the
-        next run}%
-    \fi
+    \xdef\mfx@fit@ended{\csname mfx@yk@\the\count@\endcsname}%
+    \xdef\mfx@fit@endcount{\the\count@}%
+    \xdef\mfx@fit@endroom{\the\dimexpr\@colroom-\ht\@tempboxa\relax}%
+    \global\let\mfx@fit@prelist\mfx@marginlist
     \ifdim\ht\@tempboxa<.5\@colroom
       \PackageWarningNoLine{marginfix}{Page \the\c@page\space ends early, so
         that the margin note\MessageBreak called out at
@@ -1690,6 +1872,141 @@
         \the\numexpr100*\ht\@tempboxa/\@colroom\relax\@percentchar\space
         of the page}%
     \fi
+  \fi
+}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@fit@left,\MFX@fit@stale,\MFX@fit@endcap,\mfx@fit@room,
+%     \ifmfx@fit@full}
+% Whether the page that ended for a note had room for it is known once its
+% margin is built.  \cs{MFX@fit@left} runs right after the first pass of the
+% build (\cs{MFX@buildmargin@down}), which takes the notes in order and adds up
+% their heights, as a note that comes after all of them would be: it keeps
+% the room left in the piece of the margin where the pass ended, or, if there
+% are pieces below that it didn't reach, the last of them
+% (\cs{mfx@fit@room}), and whether an ordinary note, or a
+% \cs{clearmargin}, was left over for a later page (\cs{ifmfx@fit@full}):
+% then the margin is full, and a note after it can't fit.  In the modes
+% \texttt{defer} and \texttt{split}, with a margin of one piece, the
+% deferrable notes taken would give way to the note, so their room counts
+% too.
+%
+% \cs{MFX@fit@stale}, after the build, decides.  If the note has a height
+% (\cs{mfx@yieldht}), the margin isn't full and has room for it, with
+% \cs{marginparpush}, and the text has room for at least another line, then the
+% break wasn't needed: we retire the record, and don't cap the page, which the
+% break was not needed for either.  If the note has been retired twice already,
+% we warn instead, and the break stands.  Otherwise the page is capped if it leaves more than
+% \cs{marginnoteyieldlimit} empty (\cs{MFX@fit@endcap}): we write
+% \cs{mfx@noyieldfirm} under the note's key, with that room, and cap every
+% ordinary note in the mode \texttt{break} that was in the margin list before
+% the build (\cs{MFX@fit@capnote}, with the list kept by \cs{MFX@fit@page}),
+% before \cs{MFX@fit@after} looks at the notes carried from the page.
+%    \begin{macrocode}
+\newdimen\mfx@fit@room
+\newif\ifmfx@fit@full
+\def\MFX@fit@left{%
+  \ifx\mfx@fit@ended\@empty\else
+    \global\mfx@fit@room\Mfx@marginheight
+    \def\@elt##1{\global\mfx@fit@room##1\relax}%
+    \mfx@pieceheights
+    \let\@elt\relax
+    \global\mfx@fit@fullfalse
+    \begingroup
+      \def\mfx@build@note##1##2##3{%
+        \MFX@islow##1%
+        \if@tempswa\else\global\mfx@fit@fulltrue\fi}%
+      \let\mfx@build@skip\@gobble
+      \def\mfx@build@clear{\global\mfx@fit@fulltrue}%
+      \mfx@marginlist
+    \endgroup
+    \ifx\mfx@priority\MFX@priority@warn\else
+    \ifx\mfx@priority\MFX@priority@off\else
+    \ifmfx@onepiece
+      \begingroup
+        \let\mfx@fit@first\relax
+        \def\@cons##1##2{%
+          \ifx\mfx@fit@first\relax\def\mfx@fit@first{##2}\fi}%
+        \def\mfx@build@note##1##2{%
+          \MFX@islow\mfx@fit@first
+          \if@tempswa
+            \global\advance\mfx@fit@room
+              \dimexpr\ht##1+\dp##1+\marginparpush\relax
+          \fi
+          \let\mfx@fit@first\relax}%
+        \let\mfx@build@skip\@gobble
+        \mfx@marginout
+      \endgroup
+    \fi\fi\fi
+  \fi
+}
+\def\MFX@priority@off{off}
+\def\MFX@fit@stale{%
+  \ifx\mfx@fit@ended\@empty\else
+    \@tempswafalse
+    \@ifundefined{mfx@yh@\mfx@fit@ended}{}{%
+      \ifmfx@fit@full\else
+        \ifdim\dimexpr\@nameuse{mfx@yh@\mfx@fit@ended}+\marginparpush\relax
+            <\mfx@fit@room
+          \ifdim\mfx@fit@endroom<\baselineskip\else
+            \@tempswatrue
+          \fi
+        \fi
+      \fi}%
+    \if@tempswa
+      \count@0\csname mfx@uc@\mfx@fit@ended\endcsname\relax
+      \ifnum\count@<\MFX@fit@maxretire\relax
+        \advance\count@\@ne
+        \if@filesw
+          \immediate\write\@auxout{\string\mfx@unyield{\mfx@fit@ended}%
+            {\the\count@}}%
+        \fi
+        \wlog{marginfix-yield: page=\the\c@page\space retires the break:
+          the note fits}%
+      \else
+        \PackageWarningNoLine{marginfix}{Page \the\c@page\space ends early for
+          the margin note called out at\MessageBreak
+          \csname mfx@yl@\mfx@fit@endcount\endcsname, which seems to
+          fit there,\MessageBreak
+          but its record has been retired \MFX@fit@maxretire\space times;
+          \MessageBreak
+          remove the .aux file if the page shouldn't end early}%
+        \MFX@fit@endcap
+      \fi
+    \else
+      \MFX@fit@endcap
+    \fi
+    \global\let\mfx@fit@ended\@empty
+    \global\let\mfx@fit@prelist\@empty
+  \fi
+}
+\def\MFX@fit@maxretire{2}
+% \MFX@fit@writeyield<key macro>: write the record of a note that ends its
+% page, with the number of its retirements, if any.
+\def\MFX@fit@writeyield#1{%
+  \immediate\write\@auxout{\string\mfx@yield{#1}}%
+  \expandafter\ifx\csname mfx@uc@#1\endcsname\relax\else
+    \immediate\write\@auxout{\string\mfx@yieldtries{#1}%
+      {\csname mfx@uc@#1\endcsname}}%
+  \fi
+}
+\def\MFX@fit@endcap{%
+  \ifdim\mfx@fit@endroom>\mfx@yieldlimit
+    \if@filesw
+      \immediate\write\@auxout{\string\mfx@noyieldfirm
+        {\mfx@fit@ended}{\mfx@fit@endroom}}%
+    \fi
+    \begingroup
+      \def\mfx@build@note##1##2##3{\MFX@fit@capnote##1}%
+      \let\mfx@build@skip\@gobble
+      \let\mfx@build@clear\relax
+      \mfx@fit@prelist
+    \endgroup
+    \wlog{marginfix-yield: page=\the\c@page\space leaves
+      \mfx@fit@endroom\space empty, more
+      than \string\marginnoteyieldlimit; the note is carried in the
+      next run}%
   \fi
 }
 %    \end{macrocode}
@@ -1748,7 +2065,7 @@
     \let\mfx@build@skip\@gobble
     \let\mfx@build@clear\relax
     \mfx@marginlist
-    \def\mfx@build@note##1##2##3{\MFX@fit@carried##1}%
+    \def\mfx@build@note##1##2##3{\def\mfx@fit@other{##2}\MFX@fit@carried##1}%
     \mfx@marginlist
   \endgroup
   \let\mfx@spills@kept\@empty
@@ -1794,7 +2111,11 @@
           \global\let\mfx@fit@recorded\MFX@fit@capped
         \else
           \if@filesw
-            \immediate\write\@auxout{\string\mfx@yield{\reserved@a}}%
+            \MFX@fit@writeyield\reserved@a
+            \expandafter\let\expandafter\mfx@fit@by
+              \csname mfx@by@#1\endcsname
+            \MFX@fit@lineheight{#1}\mfx@fit@other\mfx@fit@by
+              \mfx@fit@pagelist
           \fi
         \fi
       \fi}}%
@@ -1905,7 +2226,9 @@
   \advance\Mfx@marginheight\marginheightadjustment
   \MFX@fit@page
   \mfx@release@deferred
+  \global\let\mfx@fit@pagelist\mfx@marginlist
   \MFX@buildmargin
+  \MFX@fit@stale
   \MFX@fit@after
   \gdef\mfx@fit@lastkern{0}%
   \gdef\mfx@fit@textht{0pt}%
@@ -2023,8 +2346,11 @@
 % piece is addressed.  The whole process is bypassed if there are
 % no eligible margin pieces.
 %    \begin{macrocode}
+  \global\mfx@fit@room\z@
+  \global\mfx@fit@fulltrue
   \ifx\mfx@marginpieces\@empty\else
     \MFX@buildmargin@down
+    \MFX@fit@left
     \MFX@buildmargin@up
     \MFX@buildmargin@pieces
   \fi
