@@ -1,0 +1,39 @@
+% Test of notes that don't fit on their page (\marginnoteoverflow).
+%
+% A paragraph with eleven long footnotes in the margin (memoir's
+% \footnotesinmargin), two or three to a line, at the foot of the first
+% page: more than its margin, and the next page's, can hold.
+% \overflowcase chooses the mode:
+%
+%   carry  the default: the notes that don't fit are carried to the next
+%          page, each logged as "marginfix-spill: ... intended";
+%   break  \marginnoteoverflow{break} in the preamble: after the runs
+%          settle, each page ends before the line of the first note that
+%          doesn't fit, no note is carried (no marginfix-spill line), and
+%          each early end is logged as "marginfix-yield: ...";
+%   local  break in the preamble, but the paragraph in a group with
+%          \marginnoteoverflow{carry}: as carry.
+%
+% test/overflowcheck.sh runs each case and checks the log and that the
+% runs settle.
+\documentclass[a4paper]{memoir}
+\usepackage{lipsum}
+\usepackage{marginfix}
+\footnotesinmargin
+\def\breakcase{break}\def\localcase{local}
+\ifx\overflowcase\breakcase\marginnoteoverflow{break}\fi
+\ifx\overflowcase\localcase\marginnoteoverflow{break}\fi
+\newcommand\fn[1]{\footnote{#1 \lipsum[1][1-6]}}
+\begin{document}
+\lipsum[1-4]
+
+\begingroup
+\ifx\overflowcase\localcase\marginnoteoverflow{carry}\fi
+\lipsum[2][1-3]\fn{A} \lipsum[3][1-3]\fn{B} \lipsum[4][1-3]\fn{C}
+\lipsum[5][1-3]\fn{D} \lipsum[6][1-3]\fn{E} \lipsum[7][1-3]\fn{F}
+\lipsum[8][1-3]\fn{G} \lipsum[9][1-3]\fn{H} \lipsum[10][1-3]\fn{I}
+\lipsum[11][1-3]\fn{J} \lipsum[12][1-3]\fn{K}\par
+\endgroup
+
+\lipsum[6-8]
+\end{document}
