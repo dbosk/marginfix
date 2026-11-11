@@ -1,0 +1,68 @@
+% Test that a page whose marks can't be read cleanly doesn't misplace a note
+% silently.  As test/anchormarks.tex (a note handed to the page before its
+% callout's line, page 1 having no callout of its own), with glue that
+% shrinks without limit in the page while marginfix reads it (as in
+% test/marksquiet.tex), so that marginfix falls back to \botmarks, which on
+% such a page names the note handed to it.  The note must be on its
+% callout's page, or the log must say that page 1's marks couldn't be read
+% (make checks).
+% regress: skip
+%
+% The paragraph of five lines is unbreakable, and the filler before it is
+% measured so that only the paragraph's last line would overflow the first
+% page: LaTeX hands the note on line four to the first page, and then
+% breaks the page before the paragraph.  Up to v1.5 the first run set the
+% note on page 1 and the second run, from the anchor page in the .aux file,
+% moved it; now the marks in the page tell the first run.
+%
+% Two runs: the second checks, from the labels of the first, that the note
+% was set on the page of its callout.
+\documentclass{article}
+\usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\usepackage{marginfix}
+\pagestyle{empty}
+
+\makeatletter
+\let\mf@cfb\MFX@combinefloats@before
+\def\MFX@combinefloats@before{%
+  \setbox\@outputbox\vbox{\unvbox\@outputbox\vskip\z@ minus 1fil\kern\z@}%
+  \mf@cfb
+  \setbox\@outputbox\vbox{\unvbox\@outputbox\unkern\unskip}}
+\providecommand\mfrun{0}
+\AtBeginDocument{\if@filesw\immediate\write\@auxout{%
+  \gdef\string\mfrun{\the\numexpr\mfrun+1\relax}}\fi}
+% \mfpage{<label>}: the page of a label, from the second field of \r@<label>
+\def\mfpage#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax ??\else
+    \expandafter\expandafter\expandafter\mf@page
+      \csname r@#1\endcsname\@nil\fi}
+\def\mf@page#1#2#3\@nil{#2}
+% \fillwords{<n>}: n times twelve words of filler
+\newcommand{\fillwords}[1]{\count@=#1\relax
+  \loop\ifnum\count@>\z@ lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count@\m@ne\repeat}
+\makeatother
+
+\begin{document}
+Start. \fillwords{34}
+
+{\interlinepenalty=10000
+Line one of the straddling paragraph.\\
+Line two of the straddling paragraph.\\
+Line three of the straddling paragraph.\\
+Line four, with the callout\label{callout-D}\marginpar{D: its callout is on
+  this page.\label{note-D}} on it.\\
+Line five, the last; the paragraph is unbreakable.\par}
+
+\fillwords{40}
+
+\ifnum\mfrun=1
+  \edef\callout{\mfpage{callout-D}}\edef\note{\mfpage{note-D}}%
+  \ifx\callout\note
+    \typeout{marksfallback test: on its page: note D on page \note}%
+  \else
+    \typeout{marksfallback test: off its page: note D on page \note, its
+      callout on page \callout}%
+  \fi
+\fi
+\end{document}

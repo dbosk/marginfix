@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3743}
+\CheckSum{3763}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -102,7 +102,8 @@
 % \changes{v1.5}{2026/11/11}
 %       {(Daniel Bosk) Don't split a page that holds glue that shrinks
 %        without limit to read its marks, which logged an error; read
-%        \cs{botmarks} then.}
+%        \cs{botmarks} then, and where that can't tell whether the page has
+%        a callout of its own, hold the notes and warn.}
 % \changes{v1.5}{2026/11/11}
 %       {(Daniel Bosk) Keep the margin beside a float placed in the text
 %        empty when it has a side caption or says
@@ -1053,8 +1054,15 @@
 % such glue is left inside, which a package's output routine could put
 % there, we don't split at all: a box that fits into no height at all has
 % it (or is empty), and then we read \cs{botmarks} instead, which is right
-% unless the page has no callout of its own.  A split stops at a forced
-% break, so we split what is left again, until nothing is left.
+% unless the page has no callout of its own: then it names the last callout
+% that a run of the output routine for this page saw, whose line may have
+% gone on to the next page, and the note would be set here, silently.  If
+% the page's first mark is the one it starts with (\cs{firstmarks} is
+% \cs{topmarks}), it may have none of its own, so we keep \cs{mfx@lastid}
+% as it was, which holds the notes called out since, and warn: a note whose
+% line is on this page after all goes to the next.
+% A split stops at a forced break, so we split what is left again, until
+% nothing is left.
 %
 % (Up to 306a3b9 the split ran on regardless, in batch mode, and its
 % complaint still went to the log as an error.  We tried \cs{botmarks}
@@ -1076,6 +1084,15 @@
       \setbox\tw@\vbox to\z@{\unvcopy\z@}%
       \ifnum\badness<1000000
         \edef\mfx@tmp{\botmarks\mfx@marks}%
+        \edef\reserved@a{\firstmarks\mfx@marks}%
+        \edef\reserved@b{\topmarks\mfx@marks}%
+        \ifx\reserved@a\reserved@b
+          \let\mfx@tmp\@empty
+          \PackageWarningNoLine{marginfix}{Can't read the callouts of page
+            \thepage\space (glue that\MessageBreak shrinks without limit):
+            notes called out near its end\MessageBreak may be set on the
+            next page}%
+        \fi
       \else
         \loop
           \setbox\tw@\vsplit\z@ to\maxdimen
