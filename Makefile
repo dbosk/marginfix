@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test carrywarn-test tallnote-test tallrest-test splitrest-test priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test carrywarn-test tallnote-test tallrest-test splitrest-test chopused-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	midfloat-test calloutbreak-test sideof-test innercallout-test $(SIDE_CASES:%=side-%.pdf)
@@ -164,10 +164,21 @@ splitrest-test:marginfix.sty test/splitrest.tex
 	      { echo "splitrest $$c: note $$l not set"; exit 1; }; done; \
 	  echo "splitrest $$c: ended, $$p pages, every note set"; done
 
+# Many notes waiting for the margin don't overflow a dimension (see
+# test/chopused.tex): no error, every note set.
+.PHONY: chopused-test
+chopused-test:marginfix.sty test/chopused.tex
+	( ulimit -f 20480; timeout 120 pdflatex -interaction=nonstopmode \
+	  -jobname=chopused test/chopused >/dev/null 2>&1 ) \
+	  || { grep -A3 '^!' chopused.log | head -8; exit 1; }
+	test "$$(grep -c 'newlabel{n' chopused.aux)" = 41
+	@echo "chopused: no error, 41 notes set"
+
 # Termination on random documents (test/fuzz.py, test/fuzzcheck.py): a fixed
 # sample of 20 seeds, each must end, settle, give the same text on a run more,
-# and set every note or name it.  FUZZSEEDS and FUZZBASE (a directory with
-# another marginfix.sty, to compare pages with) can be set.
+# set every note or name it, and stay within a bound on the pages (see the
+# checker).  FUZZSEEDS and FUZZBASE (a directory with another marginfix.sty,
+# whose builds are checked too, for comparison) can be set.
 FUZZSEEDS?=$(shell seq 1001 1020)
 .PHONY: fuzz-test
 fuzz-test:marginfix.sty test/fuzz.py test/fuzzcheck.py

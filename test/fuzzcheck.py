@@ -13,8 +13,11 @@ the .aux file stops changing (at most 6 runs), each run under a timeout
 - there is no LaTeX error but marginfix's "lost some margin notes";
 - every note is set (its label n-k is in the .aux file) or named by a warning
   that it will be lost, at least as many warnings as notes not set;
-- with --base, where the base set every note: no more pages than the base's
-  build plus 2.
+- no more pages than a bound: the pages of the same document without its
+  notes, plus one for every margin's worth of notes (the sum of their heights,
+  each with \\marginparpush, over the margin's height), plus one for every
+  note taller than the margin, plus 2.  With --base, the base's build is
+  checked too, for comparison.
 Prints a line per build, and a summary of counts; exit status 1 on a failure.
 """
 import argparse
@@ -42,12 +45,12 @@ def limit():
     resource.setrlimit(resource.RLIMIT_FSIZE, (20 << 20, 20 << 20))
 
 
-def build(seed, tag, stydir):
+def build(seed, tag, stydir, nonotes=False):
     d = os.path.join(a.work, f"{seed}-{tag}")
     shutil.rmtree(d, ignore_errors=True)
     os.makedirs(d)
-    subprocess.run([sys.executable, os.path.join(here, "fuzz.py"), str(seed), os.path.join(d, "d.tex")],
-                   check=True)
+    subprocess.run([sys.executable, os.path.join(here, "fuzz.py"), str(seed), os.path.join(d, "d.tex")]
+                   + (["nonotes"] if nonotes else []), check=True)
     env = dict(os.environ, TEXINPUTS=f"{os.path.abspath(stydir)}//:")
     res = dict(seed=seed, tag=tag, ended=True, settled=False, runs=0)
 
@@ -86,6 +89,9 @@ def build(seed, tag, stydir):
     m = re.search(r"Output written on d\.pdf \((\d+) page", log)
     res["pages"] = int(m[1]) if m else 0
     res["notes"] = int(re.search(r"fuzz notes=(\d+)", log)[1]) if "fuzz notes=" in log else -1
+    m = re.search(r"notesum=(\d+)pt margin=([\d.]+)pt tall=(\d+)", log)
+    if m:
+        res["notesum"], res["margin"], res["tall"] = int(m[1]), float(m[2]), int(m[3])
     res["set"] = len(set(re.findall(r"\\newlabel\{n-(\d+)\}", aux)))
     res["warnedlost"] = len(re.findall(r"it will be lost", log.replace("\n", "")))
     errs = re.findall(r"^! (.*)", log, re.M)
@@ -94,7 +100,7 @@ def build(seed, tag, stydir):
     return res, d
 
 
-def verdict(res, base):
+def verdict(res, bound=None):
     why = []
     if not res["ended"]:
         why.append("never ends")
@@ -105,11 +111,12 @@ def verdict(res, base):
             why.append("a run from the settled .aux changes the text")
         if res["errors"]:
             why.append("errors: " + "; ".join(res["errors"][:2]))
-        if res["notes"] < 0 or res["set"] + res["warnedlost"] < res["notes"]:
+        if res["notes"] < 0:
+            why.append("no output: the run stopped before the end of the document")
+        elif res["set"] + res["warnedlost"] < res["notes"]:
             why.append(f"{res['notes'] - res['set']} notes not set, {res['warnedlost']} named")
-        if base and base.get("pages") and base.get("set") == base.get("notes") \
-                and res["pages"] > base["pages"] + 2:
-            why.append(f"{res['pages']} pages, base {base['pages']}")
+        if bound is not None and res["pages"] > bound:
+            why.append(f"{res['pages']} pages, more than the bound {bound}")
     return why
 
 
@@ -120,14 +127,22 @@ for seed in a.seeds:
     base = None
     if a.base:
         base, bd = build(seed, "base", a.base)
-        bw = verdict(base, None)
+        bw = verdict(base)
         counts["base " + ("pass" if not bw else bw[0].split(":")[0])] = \
             counts.get("base " + ("pass" if not bw else bw[0].split(":")[0]), 0) + 1
         print(json.dumps(dict(base, why=bw, errors=base.get("errors", [])[:2])))
         if not a.keep:
             shutil.rmtree(bd, ignore_errors=True)
+    text, td = build(seed, "text", sty, nonotes=True)
+    shutil.rmtree(td, ignore_errors=True)
     res, d = build(seed, "new", sty)
-    why = verdict(res, base)
+    bound = None
+    if "notesum" in res and text.get("pages"):
+        # the text alone, a margin for every margin's worth of notes, a page
+        # for every note taller than the margin, and two to spare
+        bound = text["pages"] + -(-res["notesum"] // int(res["margin"])) + res["tall"] + 2
+    res["textpages"], res["bound"] = text.get("pages"), bound
+    why = verdict(res, bound)
     key = "new " + ("pass" if not why else why[0].split(":")[0])
     counts[key] = counts.get(key, 0) + 1
     print(json.dumps(dict(res, why=why, errors=res.get("errors", [])[:2])))

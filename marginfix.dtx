@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3833}
+\CheckSum{3844}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -2061,6 +2061,7 @@
       \let\mfx@build@note\MFX@chop@note
       \def\mfx@build@skip##1{%
         \advance\Mfx@chop@used##1\relax
+        \MFX@chop@cap
         \MFX@cons\mfx@chopped{\noexpand\mfx@build@skip{##1}}}%
       \def\mfx@build@clear{\MFX@cons\mfx@chopped{\noexpand\mfx@build@clear}}%
       \mfx@marginlist
@@ -2111,7 +2112,13 @@
   \else
     \MFX@cons\mfx@chopped{\noexpand\mfx@build@note#1#2{#3}}%
     \advance\Mfx@chop@used\dimen@
-  \fi}
+  \fi
+  \MFX@chop@cap}
+% The estimate stops at the margin's height: past it no room is left on this
+% page anyway, and a long list of waiting notes would pass \TeX's largest
+% dimension (``Dimension too large'').
+\def\MFX@chop@cap{%
+  \ifdim\Mfx@chop@used>\Mfx@marginheight \Mfx@chop@used\Mfx@marginheight \fi}
 %    \end{macrocode}
 % \end{macros}
 %
@@ -2986,6 +2993,20 @@
 % part is one tall line, such as a rule, gains the height of a first line
 % (and of the cue) and can come out as tall as the note, and splitting it
 % again on every page never ends.
+%
+% This test is the one condition of progress for the margin.  Pieces of a
+% note are made only here, called from \cs{MFX@split} (a deferrable note in
+% the mode \texttt{split}, \cs{MFX@give@way}) and from \cs{MFX@chop@note} (a
+% note taller than the margin), and each piece is shorter than the note it
+% came from.  Every other path that puts a note back on the list moves it
+% whole and adds nothing: the mode \texttt{defer} and the mode \texttt{warn}
+% when a note gives way, \cs{mfx@hold@late} and \cs{mfx@deferred} for a note
+% whose callout is on a later page, the float and side-caption blocks,
+% \cs{blockmargin} and \cs{marginphantom}, and the two-sided pair of boxes, of
+% which both are split or neither.  A whole note shorter than the margin fits
+% on the first page whose margin is free of blocks, and one that isn't is
+% made so by \cs{MFX@chop@note}; at the end, \cs{dumpmargins} stops with an
+% error on a page that places nothing.
 %    \begin{macrocode}
 \def\MFX@split@try#1{%
   \begingroup
