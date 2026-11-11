@@ -6,7 +6,8 @@
 % deferrable note is: its first part is set beside its callout, and the
 % rest continues on the next page.  Note B, called out after it in the same
 % full margin, can't stay on its page, but it must be set (with a warning).
-% \tallmode chooses the priority mode (warn or split).
+% \tallmode chooses the priority mode (warn or split); with \tallfoot,
+% the notes are footnotes set in memoir's margin.
 %
 % Two runs: the second checks, from the labels of the first, that note A
 % starts on the page of its callout and that note B is set; any error stops
@@ -14,9 +15,14 @@
 % It tests a change of the layout (before, the note was lost), so the
 % regression test skips it.
 % regress: skip
-\documentclass{article}
-\usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\ifdefined\tallfoot
+  \documentclass[a5paper]{memoir}
+\else
+  \documentclass{article}
+  \usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\fi
 \usepackage{marginfix}
+\ifdefined\tallfoot \footnotesinmargin \fi
 \providecommand\tallmode{warn}
 \marginnotepriority{\tallmode}
 \pagestyle{empty}
@@ -36,7 +42,7 @@
 \def\tncheck#1{%
   \edef\callout{\tnpage{callout-#1}}\edef\note{\tnpage{note-#1}}%
   \ifx\callout\note
-    \typeout{tallnote test (\tallmode): note #1 starts on page \note, as its
+    \typeout{tallnote test (\tallmode\ifdefined\tallfoot, footnotes\fi): note #1 starts on page \note, as its
       callout}%
   \else
     \PackageError{tallnote test}{Note #1 starts on page \note, its callout
@@ -45,14 +51,19 @@
 \makeatother
 
 \begin{document}
-Start\label{callout-A}\marginpar{\label{note-A}A: \fillwords{30}} \fillwords{20}
-Then\label{callout-B}\marginpar{\label{note-B}B: \fillwords{1}} \fillwords{60}
+\ifdefined\tallfoot
+  \def\tnnote#1#2{\footnote{\label{note-#1}#1: \fillwords{#2}}}
+\else
+  \def\tnnote#1#2{\marginpar{\label{note-#1}#1: \fillwords{#2}}}
+\fi
+Start\label{callout-A}\tnnote A{30} \fillwords{20}
+Then\label{callout-B}\tnnote B{1} \fillwords{60}
 
 \ifnum\tnrun=1 \tncheck A%
   \expandafter\ifx\csname r@note-B\endcsname\relax
     \PackageError{tallnote test}{Note B is lost}{}%
   \else
-    \typeout{tallnote test (\tallmode): note B is set, on page \tnpage{note-B}}%
+    \typeout{tallnote test (\tallmode\ifdefined\tallfoot, footnotes\fi): note B is set, on page \tnpage{note-B}}%
   \fi
 \fi
 \end{document}

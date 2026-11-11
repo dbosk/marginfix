@@ -106,13 +106,16 @@ calloutbreak-test:marginfix.sty
 	test/calloutbreakcheck.sh
 
 # An ordinary note taller than the margin is split, not lost, in both
-# modes; the second run checks that it starts beside its callout
+# modes, and a footnote set in memoir's margin too; the second run checks that it starts beside its callout
 # (see test/tallnote.tex).
 .PHONY: tallnote-test
 tallnote-test:marginfix.sty test/tallnote.tex
-	for m in warn split; do ${RM} tallnote-$$m.aux; for i in 1 2; do \
+	for m in warn split foot; do ${RM} tallnote-$$m.aux; \
+	  d="\\def\\tallmode{$$m}"; \
+	  [ $$m = foot ] && d="\\def\\tallmode{split}\\def\\tallfoot{}"; \
+	  for i in 1 2; do \
 	  pdflatex -interaction=nonstopmode -jobname=tallnote-$$m \
-	    "\\def\\tallmode{$$m}\\input{test/tallnote}" >/dev/null \
+	    "$$d\\input{test/tallnote}" >/dev/null \
 	  || { grep -A3 '^!' tallnote-$$m.log; exit 1; }; done; \
 	  grep 'tallnote test' tallnote-$$m.log; done
 
