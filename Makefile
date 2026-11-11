@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf marksquiet.pdf priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	$(SIDE_CASES:%=side-%.pdf)
@@ -71,6 +71,15 @@ anchormarks.pdf:marginfix.sty test/anchormarks.tex
 	  pdflatex -interaction=nonstopmode test/anchormarks.tex >/dev/null \
 	  || { grep -A3 '^!' anchormarks.log; exit 1; }; done
 	@grep 'anchormarks test:' anchormarks.log
+
+# Injected marginpars (\marginphantom, \blockmargin) don't put the numbers
+# of callouts and notes out of step (see test/injectmarks.tex).
+injectmarks.pdf:marginfix.sty test/injectmarks.tex
+	${RM} injectmarks.aux
+	for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode test/injectmarks.tex >/dev/null \
+	  || { grep -A3 '^!' injectmarks.log; exit 1; }; done
+	@grep 'injectmarks test:' injectmarks.log
 
 # Reading the marks of a page logs no error, even with glue that shrinks
 # without limit in it; the second run checks the notes' pages
