@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3251}
+\CheckSum{3300}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -99,6 +99,10 @@
 %        same run, instead of recording it in the .aux file under the
 %        note's number, which gave the notes after an added or removed
 %        note their neighbours' pages and so needed many more runs.}
+% \changes{v1.5}{2026/11/11}
+%       {(Daniel Bosk) Read the marks of a page from \cs{botmarks}, with a
+%        mark at the top of each page, instead of splitting the page, which
+%        logged an error for glue that shrinks without limit.}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -930,59 +934,34 @@
 %    \end{macrocode}
 % \end{macros}
 %
-% \begin{macros}{\mfx@lastcallout,\mfx@splitmarks}
-% Run at the start of every \cs{MFX@combinefloats@before}, when
-% \cs{@outputbox} holds the text of the page.  \cs{vsplit} of a copy, at a
-% height nothing exceeds, reads the marks in it into \cs{splitbotmarks},
-% which, unlike \cs{botmarks}, is empty when the box holds none: the output
-% routine also runs for every float and marginpar, and each run moves
-% \cs{botmarks} into \cs{topmarks}, so on a page without a callout
-% \cs{botmarks} would still name the last callout the output routine saw.
-% A page without a callout leaves \cs{mfx@lastid} as it was.
+% \begin{macros}{\mfx@lastcallout}
+% Run at the start of every \cs{MFX@combinefloats@before}, in the output
+% routine for a page (or column) of text.  \cs{botmarks} then holds the last
+% of our marks in the page.  But the output routine also runs for every float
+% and marginpar, and each run moves \cs{botmarks} into \cs{topmarks}; on a
+% page with no mark of ours, \cs{botmarks} would name the last callout that
+% one of those runs saw, which may be on the next page by now.  So every page
+% starts with a mark of ours: having read the page's last callout, we put a
+% mark with that number into the output routine's list, which \TeX\ puts back
+% in front of what comes next, at the top of the next page.  A page without a
+% callout then reads the number of the page before, and \cs{mfx@lastid} stays
+% as it was.  The first page gets its mark when the document starts.  A mark
+% at the top of a page changes nothing there: it is no box, so the glue after
+% it is still discarded as at any top of a page.
 %
-% We take the same care as the \LaTeX\ kernel's own mark extraction
-% (\texttt{ltmarks}).  \cs{vsplit} complains of glue that shrinks without
-% limit, and \pkg{longtable} ends a page broken inside a table with
-% \cs{vss}, so we take the glue off the end of the copy first; a trailing
-% box we take off too, and unpack it if it is all there is.  Should such
-% glue be left inside, the kernel's trick quiets the complaint: the
-% split runs in batch mode, and the height is a register whose name tells
-% the log what happened; the split goes on regardless.  \cs{interactionmode}
-% is always set globally, so we put it back by hand.  A split stops at a
-% forced break, so we split what is left again, until nothing is left.
+% (Up to 306a3b9 the marks were read by \cs{vsplit} of a copy of the page.
+% \cs{vsplit} complains of glue that shrinks without limit, which an output
+% routine may put in the page, and the complaint, in batch mode, still went
+% to the log as an error.  \cs{botmarks} needs no split.)
 %    \begin{macrocode}
-\expandafter\let\csname Infinite shrink error above ignored!\endcsname
-  \maxdimen
 \def\mfx@lastcallout{%
-  \ifvoid\@outputbox\else
-    \begingroup
-      \vbadness\@M \vfuzz\maxdimen
-      \splittopskip\z@skip \splitmaxdepth\maxdimen
-      \setbox\z@\vbox{\unvcopy\@outputbox
-        \unskip
-        \setbox\tw@\lastbox
-        \ifnum\lastnodetype<\z@ \ifvbox\tw@ \unvbox\tw@ \fi\fi}%
-      \loop
-        \mfx@splitmarks
-        \edef\mfx@tmp{\splitbotmarks\mfx@marks}%
-        \ifx\mfx@tmp\@empty\else
-          \global\mfx@lastid\mfx@tmp\relax
-        \fi
-      \unless\ifvoid\z@
-      \repeat
-    \endgroup
+  \edef\mfx@tmp{\botmarks\mfx@marks}%
+  \ifx\mfx@tmp\@empty\else
+    \global\mfx@lastid\mfx@tmp\relax
   \fi
+  \marks\mfx@marks{\the\mfx@lastid}%
 }
-\def\mfx@splitmarks{%
-  \edef\mfx@tmp{\interactionmode\the\interactionmode\relax}%
-  \begingroup
-    \escapechar\m@ne
-    \interactionmode\z@
-    \setbox\tw@\vsplit\z@ to
-      \csname Infinite shrink error above ignored!\endcsname
-  \endgroup
-  \mfx@tmp
-}
+\AtBeginDocument{\marks\mfx@marks{0}}
 %    \end{macrocode}
 % \end{macros}
 %

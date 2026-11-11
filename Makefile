@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf marksquiet.pdf priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	$(SIDE_CASES:%=side-%.pdf)
@@ -71,6 +71,16 @@ anchormarks.pdf:marginfix.sty test/anchormarks.tex
 	  pdflatex -interaction=nonstopmode test/anchormarks.tex >/dev/null \
 	  || { grep -A3 '^!' anchormarks.log; exit 1; }; done
 	@grep 'anchormarks test:' anchormarks.log
+
+# Reading the marks of a page logs no error, even with glue that shrinks
+# without limit in it; the second run checks the notes' pages
+# (see test/marksquiet.tex).
+marksquiet.pdf:marginfix.sty test/marksquiet.tex
+	${RM} marksquiet.aux
+	for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode test/marksquiet.tex >/dev/null \
+	  || { grep -A3 '^!' marksquiet.log; exit 1; }; done
+	@grep 'marksquiet test:' marksquiet.log
 
 # Deferrable notes: each test in each mode, three passes, since the checks
 # (see test/prioritycheck.tex) read the pages from the previous run.  A
