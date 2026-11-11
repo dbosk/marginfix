@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test carrywarn-test tallnote-test tallrest-test splitrest-test chopused-test chopmany-test priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test carrywarn-test tallnote-test tallrest-test splitrest-test chopused-test chopmany-test carryend-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	midfloat-test calloutbreak-test innercallout-test $(SIDE_CASES:%=side-%.pdf)
@@ -189,6 +189,18 @@ FUZZSEEDS?=$(shell seq 1001 1020)
 fuzz-test:marginfix.sty test/fuzz.py test/fuzzcheck.py
 	python3 test/fuzzcheck.py --timeout 60 --work fuzz-work \
 	  $(if ${FUZZBASE},--base ${FUZZBASE}) ${FUZZSEEDS}
+
+# A note set on a page \dumpmargins adds is warned about too (see
+# test/carryend.tex): as many warnings as notes off their page, and some.
+.PHONY: carryend-test
+carryend-test:marginfix.sty test/carryend.tex
+	rm -f carryend.aux
+	for i in 1 2; do pdflatex -interaction=nonstopmode -jobname=carryend \
+	  test/carryend >/dev/null || { grep -A3 '^!' carryend.log; exit 1; }; done
+	off=$$(grep -o 'carryend test: off=[0-9]*' carryend.log | grep -o '[0-9]*$$'); \
+	  said=$$(grep -c 'is set on page' carryend.log); \
+	  echo "carryend: $$off off their page, $$said warnings"; \
+	  [ "$$off" -gt 0 ] && [ "$$off" = "$$said" ]
 
 # Every note set on another page than its callout is warned about: the
 # warnings of the second run must be as many as the notes off their page

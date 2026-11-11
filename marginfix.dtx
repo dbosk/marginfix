@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3829}
+\CheckSum{3836}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -1222,8 +1222,16 @@
 % nothing is held back again on the pages \cs{dumpmargins} adds.  Thus a
 % note is never silently dropped---worst case it lands a little late,
 % exactly as an over-long note would today.
+% The callouts not read yet are on the page being finished, so we record that
+% page for them first (\cs{mfx@callout@pages}), as reading its marks would:
+% without it a note set on a page \cs{dumpmargins} adds would get no warning
+% that it is set on another page than its callout (test/carryend.tex).
 %    \begin{macrocode}
 \def\mfx@flush@deferred{%
+  \begingroup
+    \edef\mfx@tmp{\the\mfx@callid}%
+    \mfx@callout@pages
+  \endgroup
   \global\mfx@lastid\mfx@callid
   \ifx\mfx@deferred\@empty\else
     \let\mfx@released\@empty
