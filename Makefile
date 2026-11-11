@@ -164,6 +164,16 @@ splitrest-test:marginfix.sty test/splitrest.tex
 	      { echo "splitrest $$c: note $$l not set"; exit 1; }; done; \
 	  echo "splitrest $$c: ended, $$p pages, every note set"; done
 
+# Termination on random documents (test/fuzz.py, test/fuzzcheck.py): a fixed
+# sample of 20 seeds, each must end, settle, give the same text on a run more,
+# and set every note or name it.  FUZZSEEDS and FUZZBASE (a directory with
+# another marginfix.sty, to compare pages with) can be set.
+FUZZSEEDS?=$(shell seq 1001 1020)
+.PHONY: fuzz-test
+fuzz-test:marginfix.sty test/fuzz.py test/fuzzcheck.py
+	python3 test/fuzzcheck.py --timeout 60 --work fuzz-work \
+	  $(if ${FUZZBASE},--base ${FUZZBASE}) ${FUZZSEEDS}
+
 # Every note set on another page than its callout is warned about: the
 # warnings of the second run must be as many as the notes off their page
 # (see test/carrywarn.tex), and there must be some.
@@ -288,3 +298,4 @@ $(SIDE_CASES:%=side-%.pdf): side-%.pdf: marginfix.sty test/side.tex
 
 clean:
 	rm *.log *.aux *.pdf tufte.out marginfix.sty
+	rm -rf fuzz-work
