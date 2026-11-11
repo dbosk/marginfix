@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3369}
+\CheckSum{3468}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -107,6 +107,9 @@
 %       {(Daniel Bosk) Keep the margin beside a float placed in the text
 %        empty when it has a side caption or says
 %        \cs{marginnotereservefloat} (from 1.6 on the branch margin-fit).}
+% \changes{v1.5}{2026/11/11}
+%       {(Daniel Bosk) Warn about every note set on another page than its
+%        callout, naming where it is called out and both pages.}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -134,11 +137,13 @@
 % A \cs{marginpar} is a float, so \LaTeX{} can attach it to the page it is
 % assembling even when the page then breaks \emph{before} the line that
 % called it---leaving a note whose mark is at the top of a page set in the
-% margin of the previous page.  marginfix now records each callout's page in
-% the \texttt{.aux} file and, on the next run, holds such a note back until
-% its own page is shipped (requesting a rerun through the usual ``Label(s)
-% may have changed'' mechanism).  This is automatic and needs no markup;
-% like cross-references it simply takes an extra pass to settle.
+% margin of the previous page.  marginfix holds such a note back until its
+% own page is shipped.  It finds the page of each callout from a mark in the
+% same run, so this needs neither markup nor another run.  (Up to v1.5 it
+% recorded each callout's page in the \texttt{.aux} file and read it in the
+% next run.)  A note that is still set on another page than its callout,
+% say one that doesn't fit in the margin of its page, gets a warning that
+% names where it is called out and both pages.
 %
 % As of v1.5 notes can be marked as \emph{deferrable}: commentary that may
 % move to a later page, or be split across pages, so that the ordinary notes
@@ -968,11 +973,63 @@
 \def\mfx@lastcallout{%
   \edef\mfx@tmp{\botmarks\mfx@marks}%
   \ifx\mfx@tmp\@empty\else
+    \mfx@callout@pages
     \global\mfx@lastid\mfx@tmp\relax
   \fi
   \marks\mfx@marks{\the\mfx@lastid}%
 }
 \AtBeginDocument{\marks\mfx@marks{0}}
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\mfx@callout@pages,\MFX@check@page}
+% The callouts from just after \cs{mfx@lastid} up to the one just read are
+% those of this page, so we note their page, under their number:
+% \cs{mfx@cp@}\meta{number}, as \cs{c@page} and as \cs{thepage}.  When a
+% note goes into the margin (\cs{MFX@piece@note@up}), \cs{MFX@check@page}
+% compares: a note set on another page than its callout's gets a warning,
+% naming where it is called out and both pages, so that no note leaves its
+% mark unsaid.  The rest of a split note has no number of its own and is
+% not checked: it says that it continues.  A deferrable note moved in the
+% modes \texttt{defer} and \texttt{split} is warned about where it gives
+% way (\cs{MFX@give@way}), so not again here.  In the mode \texttt{warn} an
+% ordinary note held up by deferrable notes ahead of it gets both warnings:
+% the one that says why (\cs{MFX@trials}) and this one, which says where it
+% went  The mode \texttt{off} is silent about margin notes, so it says
+% nothing here either.
+%    \begin{macrocode}
+\def\mfx@callout@pages{%
+  \@tempcnta\mfx@lastid
+  \loop\ifnum\@tempcnta<\mfx@tmp\relax
+    \advance\@tempcnta\@ne
+    \expandafter\xdef\csname mfx@cp@\the\@tempcnta\endcsname{%
+      {\number\c@page}{\thepage}}%
+  \repeat}
+\def\MFX@check@page#1{%
+  \def\mfx@chkbox{#1}%
+  \count@\MFX@idof{#1}\relax
+  \ifnum\count@>\z@
+    \expandafter\ifx\csname mfx@cp@\the\count@\endcsname\relax\else
+      \expandafter\expandafter\expandafter\MFX@check@page@
+        \csname mfx@cp@\the\count@\endcsname
+    \fi
+  \fi}
+\def\MFX@check@page@#1#2{%
+  \ifnum#1=\c@page\else
+    \MFX@islow\mfx@chkbox
+    \if@tempswa
+      \@tempswafalse
+      \ifx\mfx@priority\MFX@priority@warn\@tempswatrue\fi
+    \else
+      \@tempswatrue
+    \fi
+    \ifx\mfx@priority\MFX@priority@off\@tempswafalse\fi
+    \if@tempswa
+      \PackageWarningNoLine{marginfix}{Margin note called out at
+        \csname mfx@idloc@\the\count@\endcsname\MessageBreak
+        on page #2 is set on page \thepage}%
+    \fi
+  \fi}
 %    \end{macrocode}
 % \end{macros}
 %
@@ -1186,6 +1243,9 @@
 \def\mfx@note@locate{%
   \expandafter\global\expandafter\let
     \csname mfx@boxloc@\number\@currbox\expandafter\endcsname
+    \csname mfx@loc@\the\mfx@placeid\endcsname
+  \expandafter\global\expandafter\let
+    \csname mfx@idloc@\the\mfx@placeid\expandafter\endcsname
     \csname mfx@loc@\the\mfx@placeid\endcsname
   \expandafter\global\expandafter\let
     \csname mfx@loc@\the\mfx@placeid\endcsname\relax
@@ -2233,6 +2293,7 @@
 \let\MFX@down@split\MFX@down@defer
 \def\MFX@priority@warn{warn}
 \def\MFX@priority@split{split}
+\def\MFX@priority@off{off}
 %    \end{macrocode}
 % \end{macros}
 %
@@ -3336,6 +3397,7 @@
 %    \begin{macrocode}
 \def\MFX@piece@note@up#1{%
 %<debug>\MFX@debug{piece@note@up: #1}%
+  \MFX@check@page#1%
   \setbox\Mfx@piece@content\vbox{%
     \box#1%
     \unvbox\Mfx@piece@content}%

@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf carrywarn-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	midfloat-test $(SIDE_CASES:%=side-%.pdf)
@@ -86,6 +86,20 @@ injectmarks.pdf:marginfix.sty test/injectmarks.tex
 .PHONY: midfloat-test
 midfloat-test:marginfix.sty
 	test/midfloatcheck.sh
+
+# Every note set on another page than its callout is warned about: the
+# warnings of the second run must be as many as the notes off their page
+# (see test/carrywarn.tex), and there must be some.
+.PHONY: carrywarn-test
+carrywarn-test:marginfix.sty test/carrywarn.tex
+	${RM} carrywarn.aux
+	for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode test/carrywarn.tex >/dev/null \
+	  || { grep -A3 '^!' carrywarn.log; exit 1; }; done
+	@off=$$(sed -n 's/^carrywarn test: \([0-9]*\) notes.*/\1/p' carrywarn.log); \
+	warned=$$(grep -c '^Package marginfix Warning: Margin note called out at' carrywarn.log); \
+	echo "carrywarn test: $$off off their page, $$warned warned"; \
+	test "$$off" -gt 0 && test "$$off" -eq "$$warned"
 
 # Reading the marks of a page logs no error, even with glue that shrinks
 # without limit in it; the second run checks the notes' pages

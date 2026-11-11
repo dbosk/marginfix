@@ -1,0 +1,43 @@
+% Test that every note set on another page than its callout is warned about.
+%
+% Page 1 calls out more ordinary notes than its margin holds, so marginfix
+% carries the last ones to page 2.  Each such note must get a warning naming
+% where it is called out and both pages.  The second run counts, from the
+% labels of the first, the notes off their callout's page and writes the
+% number to the log; make compares it with the warnings of that run.
+\documentclass{article}
+\usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\usepackage{marginfix}
+\pagestyle{empty}
+
+\makeatletter
+\providecommand\cwrun{0}
+\AtBeginDocument{\if@filesw\immediate\write\@auxout{%
+  \gdef\string\cwrun{\the\numexpr\cwrun+1\relax}}\fi}
+\def\cwpage#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax ??\else
+    \expandafter\expandafter\expandafter\cw@page
+      \csname r@#1\endcsname\@nil\fi}
+\def\cw@page#1#2#3\@nil{#2}
+\newcount\cwoff
+\def\cwcheck#1{%
+  \edef\callout{\cwpage{callout-#1}}\edef\note{\cwpage{note-#1}}%
+  \ifx\callout\note\else\global\advance\cwoff\@ne\fi}
+\newcommand{\fillwords}[1]{\count@=#1\relax
+  \loop\ifnum\count@>\z@ lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count@\m@ne\repeat}
+\newcommand{\note}[1]{\label{callout-#1}\marginpar{\label{note-#1}#1: \fillwords{3}}}
+\makeatother
+
+\begin{document}
+Start\note{A} \fillwords{3} B\note{B} \fillwords{3} C\note{C} \fillwords{3}
+D\note{D} \fillwords{3} E\note{E} \fillwords{3} F\note{F} \fillwords{3}
+G\note{G} \fillwords{3} H\note{H} \fillwords{3}
+
+\fillwords{40}
+
+\ifnum\cwrun=1
+  \cwcheck A\cwcheck B\cwcheck C\cwcheck D\cwcheck E\cwcheck F\cwcheck G\cwcheck H%
+  \typeout{carrywarn test: \the\cwoff\space notes off their callout's page}%
+\fi
+\end{document}
