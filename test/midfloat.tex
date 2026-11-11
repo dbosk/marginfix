@@ -1,0 +1,29 @@
+% Test of a float placed in the text (h) with a side caption: the margin
+% beside it must stay empty, so that a long note called out right after it
+% on a full page isn't pushed up under the caption.  The caption's words
+% start with "cap", the note's with "note"; test/midfloatcheck.sh checks
+% that they don't share any height on the page.
+% It tests a change of the default layout (v1.6), so the regression test
+% skips it.
+% regress: skip
+\documentclass[a4paper]{memoir}
+\usepackage{lipsum}
+\usepackage{marginfix}
+\setsidecappos{b}
+\sidecapmargin{outer}
+\marginparmargin{outer}
+\begin{document}
+\lipsum[1-3]
+\begin{figure}[h]
+\begin{sidecaption}{capa capb capc capd cape capf capg caph capi capj capk
+    capl capm capn capo capp capq capr caps capt capu capv capw capx}
+\rule{6cm}{5cm}
+\end{sidecaption}
+\end{figure}
+After the figure.\marginpar{notea noteb notec noted notee notef noteg
+  noteh notei notej notek notel notem noten noteo notep noteq noter notes
+  notet noteu notev notew notex notey notez notea noteb notec noted notee
+  notef noteg noteh notei notej notek notel notem noten noteo notep noteq
+  noter notes notet noteu notev notew notex notey notez}
+\lipsum[4][1-2]
+\end{document}

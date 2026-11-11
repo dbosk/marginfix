@@ -24,7 +24,7 @@ ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
-	$(SIDE_CASES:%=side-%.pdf)
+	midfloat-test $(SIDE_CASES:%=side-%.pdf)
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
@@ -80,6 +80,12 @@ injectmarks.pdf:marginfix.sty test/injectmarks.tex
 	  pdflatex -interaction=nonstopmode test/injectmarks.tex >/dev/null \
 	  || { grep -A3 '^!' injectmarks.log; exit 1; }; done
 	@grep 'injectmarks test:' injectmarks.log
+
+# A float in the text with a side caption keeps the margin beside it empty
+# (test/midfloat.tex); needs pdftotext.
+.PHONY: midfloat-test
+midfloat-test:marginfix.sty
+	test/midfloatcheck.sh
 
 # Reading the marks of a page logs no error, even with glue that shrinks
 # without limit in it; the second run checks the notes' pages

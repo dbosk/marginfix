@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3300}
+\CheckSum{3369}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -103,6 +103,10 @@
 %       {(Daniel Bosk) Read the marks of a page from \cs{botmarks}, with a
 %        mark at the top of each page, instead of splitting the page, which
 %        logged an error for glue that shrinks without limit.}
+% \changes{v1.5}{2026/11/11}
+%       {(Daniel Bosk) Keep the margin beside a float placed in the text
+%        empty when it has a side caption or says
+%        \cs{marginnotereservefloat} (from 1.6 on the branch margin-fit).}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -369,11 +373,18 @@
 % which any of these sticks out into the margin goes unnoticed; write
 % \cs{marginnotereservefloat} in it to keep the margin beside it empty.
 % It applies to the float it is in, and only does anything with
-% \cs{marginnotebesidefloats}\texttt{\{use\}}; outside a float it warns.
+% \cs{marginnotebesidefloats}\texttt{\{use\}}, or when the float is placed
+% in the text; outside a float it warns.
 % (Used where \cs{@captype} is defined but there is no float, such as a
 % minipage that fakes one for \cs{caption}, it, or a side caption, marks
 % some unrelated box register instead.  That does no harm: a mark only
 % ever reserves margin, and it is cleared when the next float starts.)
+%
+% A float placed in the text, with the placement \texttt{h}, keeps the
+% margin beside it empty if it has a side caption or says
+% \cs{marginnotereservefloat}, whatever the mode, so that a note called out
+% near it is set above or below it and not under the caption.  Otherwise
+% notes may go beside it, as before.
 %
 % With \cs{raggedbottom} the bottom floats sit right below the text rather
 % than at the bottom of the page.  The notes may then also go beside the
@@ -1764,6 +1775,53 @@
   \AddToHook{env/sidelegend/begin}{\MFX@reservefloat}
   \AddToHook{env/sidenamedlegend/begin}{\MFX@reservefloat}
 \fi
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\@addtocurcol,\MFX@reserve@midfloat}
+% A float placed in the text (\texttt{h}) is put on the page by the
+% kernel's \cs{@addtocurcol}, in the output routine, after the text so far:
+% \cs{intextsep}, the float and \cs{intextsep}.  The notes don't know about
+% it, and one called out after it on a full page may be pushed up beside
+% it.  That is harmless beside a float within the text, but a side caption
+% sits there.  So when \cs{@addtocurcol} puts a float in the text, which we
+% see from \cs{@midlist} growing, and the float is marked as reaching into
+% the margin (a side caption or \cs{marginnotereservefloat}, the marks we
+% use for the floats at the bottom, \cs{mfx@wide@}\meta{box}), we block the
+% margin beside it, as \cs{blockmargin} and \cs{unblockmargin} around it
+% would: the free piece of margin so far ends where the float starts, and
+% the next one starts where it ends.  Positions on the page are measured
+% from the top of the text, as for the notes (\cs{MFX@getypos}).  If the
+% margin is blocked there already, there is nothing to do.  We don't look
+% at the lines of the float, as for the bottom floats in the mode
+% \texttt{use}: there we can rely on the penalties put into the float in
+% that mode, here not.  The kernel may change \cs{@addtocurcol} in later
+% versions, and other packages may change it, so we wrap whatever is there
+% at the beginning of the document.
+%    \begin{macrocode}
+\AtBeginDocument{%
+  \let\MFX@orig@addtocurcol\@addtocurcol
+  \def\@addtocurcol{%
+    \let\mfx@midlist@before\@midlist
+    \edef\mfx@float@y{\the\dimexpr\@pageht+\@pagedp\relax}%
+    \edef\mfx@float@h{%
+      \the\dimexpr\ht\@currbox+\dp\@currbox+2\intextsep\relax}%
+    \edef\mfx@float@box{\number\@currbox}%
+    \MFX@orig@addtocurcol
+    \ifx\@midlist\mfx@midlist@before\else
+      \MFX@reserve@midfloat
+    \fi}%
+}
+\def\MFX@reserve@midfloat{%
+  \expandafter\ifx\csname mfx@wide@\mfx@float@box\endcsname\relax\else
+    \ifx\mfx@marginstart\relax\else
+      \MFX@cons\mfx@marginpieces{%
+        \noexpand\@elt{\mfx@marginstart}{\mfx@float@y}}%
+      \xdef\mfx@marginstart{\the\dimexpr\mfx@float@y+\mfx@float@h\relax}%
+      \global\advance\Mfx@piece@count\@ne
+    \fi
+  \fi
+}
 %    \end{macrocode}
 % \end{macros}
 %
