@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3468}
+\CheckSum{3620}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -110,6 +110,10 @@
 % \changes{v1.5}{2026/11/11}
 %       {(Daniel Bosk) Warn about every note set on another page than its
 %        callout, naming where it is called out and both pages.}
+% \changes{v1.5}{2026/11/11}
+%       {(Daniel Bosk) Split an ordinary note taller than the whole margin
+%        of a page, as a deferrable note is split, instead of carrying it
+%        to the end of the document and losing it there with an error.}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -292,8 +296,12 @@
 % \item[\texttt{off}] As \texttt{warn}, but without the warnings.
 % \end{description}
 % An ordinary note can still move to a later page, when the ordinary notes
-% alone don't fit; nothing can help that.  A deferrable note may move more
-% than one page if the following margins are full as well.
+% alone don't fit; nothing can help that, and it gets a warning.  A
+% deferrable note may move more than one page if the following margins are
+% full as well.  A note taller than the whole margin of a page, ordinary or
+% not, is split in every mode, so that it isn't lost: its first part gets
+% the room the notes before it leave, and the rest continues on the next
+% page, split again if it is still too tall.
 %
 % The mode is used when a page is built, and \TeX{} builds a page some
 % time after it has read the text on it.  So a new mode set in the middle of
@@ -1413,6 +1421,7 @@
 \def\MFX@buildmargin{%
   \advance\Mfx@marginheight\@colroom
   \csname MFX@beside@\mfx@besidefloats\endcsname
+  \MFX@chop@tall
   \ifx\mfx@marginstart\relax
   \else
     \MFX@cons\mfx@marginpieces{%
@@ -1882,6 +1891,73 @@
     \fi
   \fi
 }
+%    \end{macrocode}
+% \end{macros}
+%
+% \subsection{Notes taller than the margin}
+% \label{sec:tall@impl}
+% \begin{macros}{\MFX@chop@tall,\MFX@chop@note,\Mfx@chop@used}
+% A note taller than the whole margin of a page never fits: carried from
+% page to page, it was lost at the end of the document, with an error.  So
+% before the margin is built we split every such note as a deferrable note
+% is split (\cs{MFX@split@try}), whatever the mode: its first part gets the
+% room the notes before it leave on this page, or, if that is less than
+% \cs{Mfx@splitmin}, a whole margin (it then goes to the next page, with a
+% warning, section~\ref{sec:anchor}); the rest follows it, as the rest of
+% a split note does, and is split again on its page if it is still too
+% tall.  The room left is estimated from the notes and skips before it, as
+% if they all fit.
+%    \begin{macrocode}
+\newdimen\Mfx@chop@used
+\def\MFX@chop@tall{%
+  \ifx\mfx@marginlist\@empty\else
+    \begingroup
+      \global\let\mfx@chopped\@empty
+      \Mfx@chop@used\z@
+      \let\mfx@build@note\MFX@chop@note
+      \def\mfx@build@skip##1{%
+        \advance\Mfx@chop@used##1\relax
+        \MFX@cons\mfx@chopped{\noexpand\mfx@build@skip{##1}}}%
+      \def\mfx@build@clear{\MFX@cons\mfx@chopped{\noexpand\mfx@build@clear}}%
+      \mfx@marginlist
+      \global\let\mfx@marginlist\mfx@chopped
+    \endgroup
+  \fi}
+\def\MFX@chop@note#1#2#3{%
+  \MFX@whichbox\@marbox#1#2%
+  \dimen@\dimexpr\ht\@marbox+\dp\@marbox\relax
+  \let\mfx@split@ok\@empty
+  \ifdim\dimen@>\dimexpr\Mfx@marginheight-\marginparpush\relax
+    \Mfx@splitroom\dimexpr\Mfx@marginheight-\Mfx@chop@used\relax
+    \ifdim\Mfx@splitroom<\Mfx@splitmin \Mfx@splitroom\Mfx@marginheight \fi
+    \MFX@split@try#1%
+  \fi
+  \@tempswafalse
+  \ifx\mfx@split@ok\@empty\else
+    \@next\mfx@restA\@freelist{%
+      \@next\mfx@restB\@freelist{\@tempswatrue}%
+        {\@cons\@freelist\mfx@restA}}{}%
+  \fi
+  \if@tempswa
+    \global\setbox#1\copy\Mfx@split@top
+    \global\setbox#2\box\Mfx@split@top
+    \global\setbox\mfx@restA\copy\Mfx@split@rest
+    \global\setbox\mfx@restB\box\Mfx@split@rest
+    \MFX@forget\mfx@restA
+    \MFX@forget\mfx@restB
+    \MFX@copyclass\mfx@restA#1%
+    \MFX@copyclass\mfx@restB#1%
+    \expandafter\xdef\csname mfx@boxloc@\number\mfx@restA\endcsname{%
+      \MFX@loc#1 (continued)}%
+    \MFX@cons\mfx@chopped{%
+      \noexpand\mfx@build@note#1#2{#3}%
+      \noexpand\mfx@build@skip{\the\marginparpush}%
+      \noexpand\mfx@build@note\mfx@restA\mfx@restB{\MFX@minus@inf}}%
+    \advance\Mfx@chop@used\Mfx@marginheight
+  \else
+    \MFX@cons\mfx@chopped{\noexpand\mfx@build@note#1#2{#3}}%
+    \advance\Mfx@chop@used\dimen@
+  \fi}
 %    \end{macrocode}
 % \end{macros}
 %
@@ -2684,26 +2760,12 @@
 %    \end{macrocode}
 % \end{macros}
 %
-% First the split itself.  We work in a group, in the note's font, and take
-% the list out of the note's box.
+% First the split itself (\cs{MFX@split@try}, which a note taller than any
+% margin uses too, section~\ref{sec:tall@impl}).  We work in a group, in the
+% note's font, and take the list out of the note's box.
 %    \begin{macrocode}
 \def\MFX@split#1#2#3{%
-  \begingroup
-    \global\let\mfx@split@ok\@empty
-    \MFX@notefont#1%
-    \Mfx@scan@room\dimexpr\Mfx@splitroom-\marginparpush-\p@\relax
-    \ifx\mfx@contsuffix\@empty\else
-      \advance\Mfx@scan@room-\baselineskip
-    \fi
-    \ifdim\Mfx@scan@room>\Mfx@splitmin
-      \setbox\z@\vbox{\unvcopy\@marbox\global\setbox\Mfx@split@tmp\lastbox}%
-      \ifvoid\Mfx@split@tmp\else
-        \setbox\Mfx@split@tmp\vbox{\unvbox\Mfx@split@tmp}%
-        \MFX@split@choose
-        \MFX@split@cut
-      \fi
-    \fi
-  \endgroup
+  \MFX@split@try#1%
 %    \end{macrocode}
 % If the split worked we need two free registers for the rest.  If we get
 % them, the top part replaces the note in both of its registers and is taken
@@ -2740,6 +2802,29 @@
     \@tempswatrue
   \fi
 }
+%    \end{macrocode}
+% \cs{MFX@split@try}\marg{box} splits the note in \cs{@marbox} (the box of
+% \meta{box}'s pair on this page's side) to the room in
+% \cs{Mfx@splitroom}: if it can, \cs{mfx@split@ok} is not empty, and the
+% parts are in \cs{Mfx@split@top} and \cs{Mfx@split@rest}.
+%    \begin{macrocode}
+\def\MFX@split@try#1{%
+  \begingroup
+    \global\let\mfx@split@ok\@empty
+    \MFX@notefont#1%
+    \Mfx@scan@room\dimexpr\Mfx@splitroom-\marginparpush-\p@\relax
+    \ifx\mfx@contsuffix\@empty\else
+      \advance\Mfx@scan@room-\baselineskip
+    \fi
+    \ifdim\Mfx@scan@room>\Mfx@splitmin
+      \setbox\z@\vbox{\unvcopy\@marbox\global\setbox\Mfx@split@tmp\lastbox}%
+      \ifvoid\Mfx@split@tmp\else
+        \setbox\Mfx@split@tmp\vbox{\unvbox\Mfx@split@tmp}%
+        \MFX@split@choose
+        \MFX@split@cut
+      \fi
+    \fi
+  \endgroup}
 %    \end{macrocode}
 % \cs{MFX@copyclass}\marg{to}\marg{from} marks the note in box \emph{to}
 % deferrable, with the font of the note in box \emph{from}.

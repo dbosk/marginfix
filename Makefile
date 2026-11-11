@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf carrywarn-test priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf carrywarn-test tallnote-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	midfloat-test $(SIDE_CASES:%=side-%.pdf)
@@ -86,6 +86,17 @@ injectmarks.pdf:marginfix.sty test/injectmarks.tex
 .PHONY: midfloat-test
 midfloat-test:marginfix.sty
 	test/midfloatcheck.sh
+
+# An ordinary note taller than the margin is split, not lost, in both
+# modes; the second run checks that it starts beside its callout
+# (see test/tallnote.tex).
+.PHONY: tallnote-test
+tallnote-test:marginfix.sty test/tallnote.tex
+	for m in warn split; do ${RM} tallnote-$$m.aux; for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode -jobname=tallnote-$$m \
+	    "\\def\\tallmode{$$m}\\input{test/tallnote}" >/dev/null \
+	  || { grep -A3 '^!' tallnote-$$m.log; exit 1; }; done; \
+	  grep 'tallnote test' tallnote-$$m.log; done
 
 # Every note set on another page than its callout is warned about: the
 # warnings of the second run must be as many as the notes off their page
