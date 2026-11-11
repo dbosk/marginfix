@@ -13,6 +13,9 @@ the .aux file stops changing (at most 6 runs), each run under a timeout
 - there is no LaTeX error but marginfix's "lost some margin notes";
 - every note is set (its label n-k is in the .aux file) or named by a warning
   that it will be lost, at least as many warnings as notes not set;
+- at least as many warnings that a note is set on another page than its
+  callout as such notes (labels m-k and n-k on different pages), but for a
+  deferrable note in the modes defer and split, and in the mode off;
 - no more pages than a bound: the pages of the same document without its
   notes, plus one for every margin's worth of notes (the sum of their heights,
   each with \\marginparpush, over the margin's height), plus one for every
@@ -93,6 +96,23 @@ def build(seed, tag, stydir, nonotes=False):
     if m:
         res["notesum"], res["margin"], res["tall"] = int(m[1]), float(m[2]), int(m[3])
     res["set"] = len(set(re.findall(r"\\newlabel\{n-(\d+)\}", aux)))
+    # notes off their callout's page, and the warnings that say so: every one
+    # but a deferrable note's in the modes defer and split, and none in off
+    pages = dict(re.findall(r"\\newlabel\{([mn]-\d+)\}\{\{[^}]*\}\{(\d+)\}", aux))
+    # TeX breaks the log's lines at 79 characters: join them back for the list
+    lines = []
+    for line in log.split("\n"):
+        if lines and len(lines[-1]) == 79:
+            lines[-1] += line
+        else:
+            lines.append(line)
+    m = re.search(r"fuzz mode=(\w+) deferrable=([\d,]*)", "\n".join(lines))
+    mode, dfr = (m[1], set(m[2].split(","))) if m else ("warn", set())
+    off = [k for k in (x[2:] for x in pages if x.startswith("n-"))
+           if pages.get("m-" + k) and pages["m-" + k] != pages["n-" + k]
+           and not (k in dfr and mode in ("defer", "split"))]
+    res["off"] = 0 if mode == "off" else len(off)
+    res["offwarned"] = len(re.findall(r"is set on page", log.replace("\n", "")))
     res["warnedlost"] = len(re.findall(r"it will be lost", log.replace("\n", "")))
     errs = re.findall(r"^! (.*)", log, re.M)
     res["lostall"] = sum("lost some margin notes" in e for e in errs)
@@ -111,6 +131,9 @@ def verdict(res, bound=None):
             why.append("a run from the settled .aux changes the text")
         if res["errors"]:
             why.append("errors: " + "; ".join(res["errors"][:2]))
+        if res.get("off", 0) > res.get("offwarned", 0):
+            why.append(f"{res['off']} notes off their callout's page, "
+                       f"{res['offwarned']} warnings")
         if res["notes"] < 0:
             why.append("no output: the run stopped before the end of the document")
         elif res["set"] + res["warnedlost"] < res["notes"]:

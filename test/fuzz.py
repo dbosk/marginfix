@@ -31,6 +31,7 @@ if r.random() < .15:
 push = r.choice(["0pt", "3pt", "7pt", "15pt"])
 mode = r.choice(["warn", "defer", "split", "off"])
 n = 0
+deferrable = []
 
 
 def note():
@@ -38,8 +39,10 @@ def note():
     global n
     n += 1
     k = n
-    deferrable = r.random() < .3
-    d = "\\marginnotedeferrable " if deferrable else ""
+    isdef = r.random() < .3
+    if isdef:
+        deferrable.append(k)
+    d = "\\marginnotedeferrable " if isdef else ""
     kind = r.random()
     if kind < .45:
         body = f"N{k} \\lipsum[1][1-{r.randint(1, 4)}]"
@@ -110,7 +113,8 @@ open(out, "w").write(f"""% fuzz seed {seed}: {cls} [{','.join(opts)}], push {pus
     \\ifdim\\dimexpr\\ht\\z@+\\dp\\z@\\relax<\\textheight\\else\\global\\advance\\fztall\\@ne\\fi
   \\endgroup}}
 \\makeatother
-\\AtEndDocument{{\\typeout{{fuzz notes={n} notesum=\\the\\fzsum pt margin=\\the\\textheight\\space tall=\\the\\fztall}}}}
+\\AtEndDocument{{\\typeout{{fuzz notes={n} notesum=\\the\\fzsum pt margin=\\the\\textheight\\space tall=\\the\\fztall}}%
+  \\typeout{{fuzz mode={mode} deferrable={','.join(map(str, deferrable))}}}}}
 % a document of a few dozen pages that runs past 150 never ends: say so (the
 % check stops it by the size of its files and by time)
 \\makeatletter
