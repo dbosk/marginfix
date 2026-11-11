@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test carrywarn-test tallnote-test tallrest-test splitrest-test chopused-test priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test carrywarn-test tallnote-test tallrest-test splitrest-test chopused-test chopmany-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	midfloat-test calloutbreak-test sideof-test innercallout-test $(SIDE_CASES:%=side-%.pdf)
@@ -173,6 +173,16 @@ chopused-test:marginfix.sty test/chopused.tex
 	  || { grep -A3 '^!' chopused.log | head -8; exit 1; }
 	test "$$(grep -c 'newlabel{n' chopused.aux)" = 41
 	@echo "chopused: no error, 41 notes set"
+
+# A list of long notes doesn't run out of LaTeX's boxes (see
+# test/chopmany.tex): no error, every note set.
+.PHONY: chopmany-test
+chopmany-test:marginfix.sty test/chopmany.tex
+	( ulimit -f 20480; timeout 120 pdflatex -interaction=nonstopmode \
+	  -jobname=chopmany test/chopmany >/dev/null 2>&1 ) \
+	  || { grep -A3 '^!' chopmany.log | head -8; exit 1; }
+	test "$$(grep -c 'newlabel{n' chopmany.aux)" = 60
+	@echo "chopmany: no error, 60 notes set"
 
 # Termination on random documents (test/fuzz.py, test/fuzzcheck.py): a fixed
 # sample of 20 seeds, each must end, settle, give the same text on a run more,

@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3844}
+\CheckSum{3849}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -2020,14 +2020,21 @@
 % \begin{macros}{\MFX@chop@tall,\MFX@chop@note,\Mfx@chop@used}
 % A note taller than the whole margin of a page never fits: carried from
 % page to page, it was lost at the end of the document, with an error.  So
-% before the margin is built we split every such note as a deferrable note
-% is split (\cs{MFX@split@try}), whatever the mode: its first part gets the
-% room the notes before it leave on this page, or, if that is less than
-% \cs{Mfx@splitmin}, a whole margin (it then goes to the next page, with a
-% warning, section~\ref{sec:anchor}); the rest follows it, as the rest of
+% before the margin is built we split such a note as a deferrable note is
+% split (\cs{MFX@split@try}), whatever the mode: its first part gets the room
+% the notes before it leave on this page; the rest follows it, as the rest of
 % a split note does, and is split again on its page if it is still too
-% tall.  The room left is estimated from the notes and skips before it, as
+% tall.  If the notes before it leave less than \cs{Mfx@splitmin}, it stays
+% whole for now and goes to the next page (with a warning,
+% section~\ref{sec:anchor}), where it is split at the top.  The room left is estimated from the notes and skips before it, as
 % if they all fit.
+%
+% We split only a note that can start on this page, one before which the
+% notes leave at least \cs{Mfx@splitmin}: a tall note further down the list
+% stays whole until it comes to the top of a page.  Splitting every tall note
+% in the list at once held a pair of boxes for each piece of each, and a list
+% of long notes ran out of LaTeX's boxes (``Too many unprocessed floats'',
+% found by the fuzz check).
 %
 % Two things make sure this ends.  A note is too tall only if it is as tall
 % as the whole margin or taller (a note fits only if it is shorter than the
@@ -2072,9 +2079,14 @@
   \MFX@whichbox\@marbox#1#2%
   \dimen@\dimexpr\ht\@marbox+\dp\@marbox\relax
   \let\mfx@split@ok\@empty
+  \@tempswafalse
   \ifdim\dimen@<\Mfx@marginheight\else
+    \ifdim\Mfx@chop@used<\dimexpr\Mfx@marginheight-\Mfx@splitmin\relax
+      \@tempswatrue
+    \fi
+  \fi
+  \if@tempswa
     \Mfx@splitroom\dimexpr\Mfx@marginheight-\Mfx@chop@used\relax
-    \ifdim\Mfx@splitroom<\Mfx@splitmin \Mfx@splitroom\Mfx@marginheight \fi
     \MFX@split@try#1%
     \ifx\mfx@split@ok\@empty
       \PackageWarningNoLine{marginfix}{The margin note called out at
