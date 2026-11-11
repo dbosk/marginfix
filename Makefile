@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test carrywarn-test tallnote-test tallrest-test priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test carrywarn-test tallnote-test tallrest-test splitrest-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	midfloat-test calloutbreak-test sideof-test innercallout-test $(SIDE_CASES:%=side-%.pdf)
@@ -145,6 +145,24 @@ tallrest-test:marginfix.sty test/tallrest.tex
 	  p=$$(grep -o '([0-9]* pages\?' tallrest-$$c.log | grep -o '[0-9]*'); \
 	  [ -n "$$p" ] && [ "$$p" -le 4 ] || { echo "tallrest $$c: $$p pages"; exit 1; }; \
 	  echo "tallrest $$c: ended, $$p pages"; done
+
+# A note no page can hold ends, and the notes after it are set (see
+# test/splitrest.tex): each case within a minute, 20 MB and a few pages, with
+# no error and every note's label written.
+.PHONY: splitrest-test
+splitrest-test:marginfix.sty test/splitrest.tex
+	for c in 1 2; do \
+	  ( ulimit -f 20480; timeout 60 pdflatex -interaction=nonstopmode \
+	    -jobname=splitrest-$$c "\\def\\splitcase{$$c}\\input{test/splitrest}" \
+	    >/dev/null 2>&1 ); \
+	  s=$$?; [ $$s = 0 ] || { echo "splitrest $$c: exit $$s"; \
+	    grep -A3 '^!' splitrest-$$c.log | head -8; exit 1; }; \
+	  p=$$(grep -o '([0-9]* pages\?' splitrest-$$c.log | grep -o '[0-9]*'); \
+	  [ -n "$$p" ] && [ "$$p" -le 4 ] || { echo "splitrest $$c: $$p pages"; exit 1; }; \
+	  for l in n1 $$([ $$c = 2 ] && echo n2); do \
+	    grep -q "newlabel{$$l}" splitrest-$$c.aux || \
+	      { echo "splitrest $$c: note $$l not set"; exit 1; }; done; \
+	  echo "splitrest $$c: ended, $$p pages, every note set"; done
 
 # Every note set on another page than its callout is warned about: the
 # warnings of the second run must be as many as the notes off their page

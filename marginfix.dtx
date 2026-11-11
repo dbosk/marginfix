@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3799}
+\CheckSum{3833}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -2029,17 +2029,30 @@
 % tall.  The room left is estimated from the notes and skips before it, as
 % if they all fit.
 %
-% Two things make sure this ends.  A note is too tall only if it is taller
-% than the whole margin: one taller than the margin less \cs{marginparpush}
+% Two things make sure this ends.  A note is too tall only if it is as tall
+% as the whole margin or taller (a note fits only if it is shorter than the
+% room, \cs{MFX@check@fit}): one taller than the margin less \cs{marginparpush}
 % still fits at the top of an empty margin, where no push comes before it,
 % and splitting it gave a rest taller than the margin.  And a split is taken
 % only if its rest is shorter than the note: the rest of a note that is one
 % line, such as a rule, gains the height \cs{MFX@split@cut} gives its first
-% line, and splitting it again on every page never ended.  A note that can't
-% be split that way stays whole, never fits, and is reported as lost at the
-% end of the document, as before; we warn here, where we know its place.
+% line, and splitting it again on every page never ended (see
+% \cs{MFX@split@try}).  A note that can't be split that way would never fit:
+% it was lost at the end of the document, and every note after it with it.
+% Instead we set it as it is, made as tall as the margin, so that it takes a
+% margin of its own and runs over its foot, and we warn, naming its place.
 %    \begin{macrocode}
 \newdimen\Mfx@chop@used
+% \MFX@fit@margin\meta{box}: make the box a point shorter than the margin
+% (a note fits only if it is shorter, \cs{MFX@check@fit}), keeping its
+% contents, which run over its foot.
+\def\MFX@fit@margin#1{%
+  \ifdim\ht#1<\dimexpr\Mfx@marginheight-\p@\relax
+    \global\dp#1\dimexpr\Mfx@marginheight-\p@-\ht#1\relax
+  \else
+    \global\ht#1\dimexpr\Mfx@marginheight-\p@\relax
+    \global\dp#1\z@
+  \fi}
 \def\MFX@chop@tall{%
   \ifx\mfx@marginlist\@empty\else
     \begingroup
@@ -2058,22 +2071,19 @@
   \MFX@whichbox\@marbox#1#2%
   \dimen@\dimexpr\ht\@marbox+\dp\@marbox\relax
   \let\mfx@split@ok\@empty
-  \ifdim\dimen@>\Mfx@marginheight
+  \ifdim\dimen@<\Mfx@marginheight\else
     \Mfx@splitroom\dimexpr\Mfx@marginheight-\Mfx@chop@used\relax
     \ifdim\Mfx@splitroom<\Mfx@splitmin \Mfx@splitroom\Mfx@marginheight \fi
     \MFX@split@try#1%
-    \ifx\mfx@split@ok\@empty\else
-      \ifdim\dimexpr\ht\Mfx@split@rest+\dp\Mfx@split@rest\relax<\dimen@\else
-        \global\let\mfx@split@ok\@empty
-      \fi
-    \fi
     \ifx\mfx@split@ok\@empty
-      \expandafter\ifx\csname mfx@tw@\number#1\endcsname\relax
-        \expandafter\gdef\csname mfx@tw@\number#1\endcsname{}%
-        \PackageWarningNoLine{marginfix}{The margin note called out at
-          \MFX@loc#1\MessageBreak is taller than the margin and can't be
-          split\MessageBreak shorter; it will be lost}%
-      \fi
+      \PackageWarningNoLine{marginfix}{The margin note called out at
+        \MFX@loc#1\MessageBreak is taller than the margin by
+        \the\dimexpr\dimen@-\Mfx@marginheight\relax\space and can't
+        be split\MessageBreak shorter; it is set as it is, at the top of a
+        margin,\MessageBreak and runs over the foot of the page}%
+      \MFX@fit@margin#1%
+      \MFX@fit@margin#2%
+      \dimen@\Mfx@marginheight
     \fi
   \fi
   \@tempswafalse
@@ -2971,7 +2981,11 @@
 % \cs{MFX@split@try}\marg{box} splits the note in \cs{@marbox} (the box of
 % \meta{box}'s pair on this page's side) to the room in
 % \cs{Mfx@splitroom}: if it can, \cs{mfx@split@ok} is not empty, and the
-% parts are in \cs{Mfx@split@top} and \cs{Mfx@split@rest}.
+% parts are in \cs{Mfx@split@top} and \cs{Mfx@split@rest}.  A split counts
+% only if its rest is shorter than the note: the rest of a note whose last
+% part is one tall line, such as a rule, gains the height of a first line
+% (and of the cue) and can come out as tall as the note, and splitting it
+% again on every page never ends.
 %    \begin{macrocode}
 \def\MFX@split@try#1{%
   \begingroup
@@ -2987,6 +3001,12 @@
         \setbox\Mfx@split@tmp\vbox{\unvbox\Mfx@split@tmp}%
         \MFX@split@choose
         \MFX@split@cut
+        \ifx\mfx@split@ok\@empty\else
+          \ifdim\dimexpr\ht\Mfx@split@rest+\dp\Mfx@split@rest\relax
+              <\dimexpr\ht\@marbox+\dp\@marbox\relax\else
+            \global\let\mfx@split@ok\@empty
+          \fi
+        \fi
       \fi
     \fi
   \endgroup}
