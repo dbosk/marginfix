@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3659}
+\CheckSum{3679}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -119,6 +119,9 @@
 %        calls out a note: the paragraph's own penalties decide, and a kern
 %        after the callout lets the line end a page where they allow it
 %        (from 1.6 on the branch margin-fit).}
+% \changes{v1.5}{2026/11/11}
+%       {(Daniel Bosk) Add \cs{marginparsideof}, to ask in which margin the
+%        notes of a page are set.}
 %
 % \GetFileInfo{marginfix.dtx}
 % \title{\Lopt{marginfix} package documentation}
@@ -409,6 +412,14 @@
 % empty space below the floats, which is harmless; and as before, notes may
 % already sit beside a bottom float that came up beside the margin of the
 % text, whatever the mode.
+%
+% \section{Which margin}
+% \DescribeMacro{\marginparsideof}\DescribeMacro{\ifmarginparleft}
+% \cs{marginparsideof}\marg{page} sets the switch \cs{ifmarginparleft},
+% locally, to whether marginfix sets the notes of that page in its left
+% margin, following \cs{reversemarginpar}, two-sided documents and, with
+% \pkg{memoir}, \cs{marginparmargin}.  It is for a package that puts
+% something beside the notes.
 %
 % \section{Interaction with other packages}
 % \subsection{memoir}
@@ -2302,6 +2313,27 @@
     \let\MFX@marginside\MFX@marginside@memoir
   \fi
 \fi
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\marginparsideof,\ifmarginparleft}
+% The public way to ask the same: \cs{marginparsideof}\marg{page} sets
+% \cs{ifmarginparleft} (locally) to whether we set the notes of that page in
+% its left margin, for a package that needs to know, say to put something
+% beside the notes.
+%    \begin{macrocode}
+\newif\ifmarginparleft
+\def\marginparsideof#1{%
+  \begingroup
+    \c@page=#1\relax
+    \@tempcnta\@ne
+    \MFX@marginside
+    \ifnum\@tempcnta<\z@
+      \aftergroup\marginparlefttrue
+    \else
+      \aftergroup\marginparleftfalse
+    \fi
+  \endgroup}
 %    \end{macrocode}
 % \end{macros}
 %

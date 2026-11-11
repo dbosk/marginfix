@@ -24,7 +24,12 @@ ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf carrywarn-test tallnote-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
-	midfloat-test calloutbreak-test $(SIDE_CASES:%=side-%.pdf)
+	midfloat-test calloutbreak-test sideof-test $(SIDE_CASES:%=side-%.pdf)
+
+# \marginparsideof, for each class and side setting (test/sideof.tex).
+.PHONY: sideof-test
+sideof-test:marginfix.sty
+	test/sideofcheck.sh
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
