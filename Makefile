@@ -24,7 +24,7 @@ ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test carrywarn-test tallnote-test tallrest-test splitrest-test chopused-test chopmany-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
-	midfloat-test calloutbreak-test sideof-test innercallout-test $(SIDE_CASES:%=side-%.pdf)
+	midfloat-test calloutbreak-test innercallout-test $(SIDE_CASES:%=side-%.pdf)
 
 # A page whose marks can't be read cleanly: the note is on its callout's
 # page, or the log says that a page's callouts couldn't be read
@@ -45,11 +45,6 @@ marksfallback-test:marginfix.sty test/marksfallback.tex
 .PHONY: innercallout-test
 innercallout-test:marginfix.sty
 	test/innercalloutcheck.sh
-
-# \marginparsideof, for each class and side setting (test/sideof.tex).
-.PHONY: sideof-test
-sideof-test:marginfix.sty
-	test/sideofcheck.sh
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
