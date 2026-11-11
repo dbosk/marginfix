@@ -15,7 +15,7 @@
            [2026/10/02 v1.5 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3763}
+\CheckSum{3799}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -2028,6 +2028,16 @@
 % a split note does, and is split again on its page if it is still too
 % tall.  The room left is estimated from the notes and skips before it, as
 % if they all fit.
+%
+% Two things make sure this ends.  A note is too tall only if it is taller
+% than the whole margin: one taller than the margin less \cs{marginparpush}
+% still fits at the top of an empty margin, where no push comes before it,
+% and splitting it gave a rest taller than the margin.  And a split is taken
+% only if its rest is shorter than the note: the rest of a note that is one
+% line, such as a rule, gains the height \cs{MFX@split@cut} gives its first
+% line, and splitting it again on every page never ended.  A note that can't
+% be split that way stays whole, never fits, and is reported as lost at the
+% end of the document, as before; we warn here, where we know its place.
 %    \begin{macrocode}
 \newdimen\Mfx@chop@used
 \def\MFX@chop@tall{%
@@ -2048,10 +2058,23 @@
   \MFX@whichbox\@marbox#1#2%
   \dimen@\dimexpr\ht\@marbox+\dp\@marbox\relax
   \let\mfx@split@ok\@empty
-  \ifdim\dimen@>\dimexpr\Mfx@marginheight-\marginparpush\relax
+  \ifdim\dimen@>\Mfx@marginheight
     \Mfx@splitroom\dimexpr\Mfx@marginheight-\Mfx@chop@used\relax
     \ifdim\Mfx@splitroom<\Mfx@splitmin \Mfx@splitroom\Mfx@marginheight \fi
     \MFX@split@try#1%
+    \ifx\mfx@split@ok\@empty\else
+      \ifdim\dimexpr\ht\Mfx@split@rest+\dp\Mfx@split@rest\relax<\dimen@\else
+        \global\let\mfx@split@ok\@empty
+      \fi
+    \fi
+    \ifx\mfx@split@ok\@empty
+      \expandafter\ifx\csname mfx@tw@\number#1\endcsname\relax
+        \expandafter\gdef\csname mfx@tw@\number#1\endcsname{}%
+        \PackageWarningNoLine{marginfix}{The margin note called out at
+          \MFX@loc#1\MessageBreak is taller than the margin and can't be
+          split\MessageBreak shorter; it will be lost}%
+      \fi
+    \fi
   \fi
   \@tempswafalse
   \ifx\mfx@split@ok\@empty\else

@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test carrywarn-test tallnote-test priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test carrywarn-test tallnote-test tallrest-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	midfloat-test calloutbreak-test sideof-test innercallout-test $(SIDE_CASES:%=side-%.pdf)
@@ -132,6 +132,19 @@ tallnote-test:marginfix.sty test/tallnote.tex
 	    "$$d\\input{test/tallnote}" >/dev/null \
 	  || { grep -A3 '^!' tallnote-$$m.log; exit 1; }; done; \
 	  grep 'tallnote test' tallnote-$$m.log; done
+
+# Splitting a note taller than the margin ends (see test/tallrest.tex): each
+# case must finish within a minute and a few pages; case 1 without an error.
+.PHONY: tallrest-test
+tallrest-test:marginfix.sty test/tallrest.tex
+	for c in 1 2; do \
+	  timeout 60 pdflatex -interaction=nonstopmode -jobname=tallrest-$$c \
+	    "\\def\\tallcase{$$c}\\input{test/tallrest}" >/dev/null; \
+	  s=$$?; [ $$s = 124 ] && { echo "tallrest $$c: never ends"; exit 1; }; \
+	  [ $$c = 1 ] && [ $$s != 0 ] && { grep -A3 '^!' tallrest-$$c.log; exit 1; }; \
+	  p=$$(grep -o '([0-9]* pages\?' tallrest-$$c.log | grep -o '[0-9]*'); \
+	  [ -n "$$p" ] && [ "$$p" -le 4 ] || { echo "tallrest $$c: $$p pages"; exit 1; }; \
+	  echo "tallrest $$c: ended, $$p pages"; done
 
 # Every note set on another page than its callout is warned about: the
 # warnings of the second run must be as many as the notes off their page
