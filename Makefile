@@ -21,24 +21,31 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test oldaux-test classes-test carrywarn-test tallnote-test tallrest-test splitrest-test chopused-test chopmany-test carryend-test priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf ltfoot-test marksfallback-test oldaux-test classes-test carrywarn-test tallnote-test tallrest-test splitrest-test chopused-test chopmany-test carryend-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	midfloat-test calloutbreak-test innercallout-test $(SIDE_CASES:%=side-%.pdf)
 
-# A page whose marks can't be read cleanly: the note is on its callout's
-# page, or the log says that a page's callouts couldn't be read
-# (see test/marksfallback.tex).
+# A page whose marks can't be read cleanly (see test/marksfallback.tex): with
+# the glue in \@outputbox only, the note is on its callout's page; with it in
+# the column, the note is on its page or warned about by name, with the pages
+# its callout may be on, from page 1, and the page it is set on.
 .PHONY: marksfallback-test
 marksfallback-test:marginfix.sty test/marksfallback.tex
-	${RM} marksfallback.aux
-	for i in 1 2; do \
-	  pdflatex -interaction=nonstopmode test/marksfallback.tex >/dev/null \
-	  || { grep -A3 '^!' marksfallback.log; exit 1; }; done
-	@grep 'marksfallback test:' marksfallback.log
-	@grep -q 'marksfallback test: on its page' marksfallback.log \
-	  || grep -q "Can't read the callouts" marksfallback.log \
-	  || { echo "marksfallback: note off its page, and no warning"; exit 1; }
+	for c in outputbox column; do ${RM} marksfallback-$$c.aux; \
+	  for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode -jobname=marksfallback-$$c \
+	    "\\def\\fbcase{$$c}\\input{test/marksfallback}" >/dev/null \
+	  || { grep -A3 '^!' marksfallback-$$c.log; exit 1; }; done; \
+	  grep 'marksfallback test:' marksfallback-$$c.log; done
+	@grep -q 'marksfallback test: on its page' marksfallback-outputbox.log \
+	  || { echo "marksfallback outputbox: note off its page"; exit 1; }
+	@l=$$(grep -n 'callout-D}.marginpar' test/marksfallback.tex | cut -d: -f1); \
+	  grep -q 'marksfallback test: on its page' marksfallback-column.log \
+	  || tr -d '\n' < marksfallback-column.log | grep -Eq \
+	    "called out at *(\(marginfix\))? *test/marksfallback.tex:$$l *(\(marginfix\))? *on page 1 to [0-9]+ is set on page [0-9]" \
+	  || { echo "marksfallback column: note D off its page, not warned by name and pages"; exit 1; }
+	@echo "marksfallback: as required"
 
 # Every standard class and memoir gets its notes at this version, which the
 # kernel's first aid doesn't know (test/classes.tex).
@@ -237,6 +244,18 @@ carrywarn-test:marginfix.sty test/carrywarn.tex
 	warned=$$(grep -c '^Package marginfix Warning: Margin note called out at' carrywarn.log); \
 	echo "carrywarn test: $$off off their page, $$warned warned"; \
 	test "$$off" -gt 0 && test "$$off" -eq "$$warned"
+
+# A page broken in a longtable, with a footnote, keeps its notes: in article
+# and memoir, the second run checks that each note is on its callout's page
+# (see test/ltfoot.tex).
+.PHONY: ltfoot-test
+ltfoot-test:marginfix.sty test/ltfoot.tex
+	for c in article memoir; do ${RM} ltfoot-$$c.aux; \
+	  for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode -jobname=ltfoot-$$c \
+	    "\\def\\ltclass{$$c}\\input{test/ltfoot}" >/dev/null \
+	  || { grep -A3 '^!' ltfoot-$$c.log; exit 1; }; done; \
+	  grep 'ltfoot test:' ltfoot-$$c.log; done
 
 # Reading the marks of a page logs no error, even with glue that shrinks
 # without limit in it; the second run checks the notes' pages

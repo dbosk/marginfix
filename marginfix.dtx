@@ -15,7 +15,7 @@
            [2026/11/16 v1.7 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{3850}
+\CheckSum{4018}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -1049,7 +1049,8 @@
 %    \end{macrocode}
 % \end{macros}
 %
-% \begin{macros}{\mfx@lastcallout}
+% \begin{macros}{\mfx@lastcallout,\mfx@readcolumn,\MFX@readmarks,
+%     \MFX@untail,\mfx@colmarks,\mfx@colpage}
 % Run at the start of every \cs{MFX@combinefloats@before}, when
 % \cs{@outputbox} holds the text of the page.  \cs{vsplit} of a copy, at a
 % height nothing exceeds, reads the marks in it into \cs{splitbotmarks},
@@ -1058,60 +1059,117 @@
 % \cs{botmarks} into \cs{topmarks}, so on a page without a callout
 % \cs{botmarks} would still name the last callout the output routine saw.
 % A page without a callout leaves \cs{mfx@lastid} as it was.
+% A split stops at a forced break, so we split what is left again, until
+% nothing is left (\cs{MFX@readmarks}\marg{box}, which leaves the last
+% number in \cs{mfx@tmp}, empty for none).
 %
 % \cs{vsplit} complains of glue that shrinks without limit, as an error
 % even in batch mode, and \pkg{longtable} ends a page broken inside a table
-% with \cs{vss}, so we take the glue off the end of the copy first; a
-% trailing box we take off too, and unpack it if it is all there is.  If
-% such glue is left inside, which a package's output routine could put
-% there, we don't split at all: a box that fits into no height at all has
-% it (or is empty), and then we read \cs{botmarks} instead, which is right
-% unless the page has no callout of its own: then it names the last callout
-% that a run of the output routine for this page saw, whose line may have
-% gone on to the next page, and the note would be set here, silently.  If
-% the page's first mark is the one it starts with (\cs{firstmarks} is
-% \cs{topmarks}), it may have none of its own, so we keep \cs{mfx@lastid}
-% as it was, which holds the notes called out since, and warn: a note whose
-% line is on this page after all goes to the next.
-% A split stops at a forced break, so we split what is left again, until
-% nothing is left.
+% with \cs{vss}, so we take the glue, kerns and penalties off the end of the
+% copy first (\cs{MFX@untail}), which hold no mark; a trailing box we take
+% off too, and unpack it if it is all there is.  But by the time
+% \cs{@combinefloats} runs, the kernel (since 2020-10) and \pkg{memoir} have
+% put the footnotes after the text, and the \cs{vss} is no longer at the end.
+% So we read the column where \cs{@makecol} starts, from \cs{box}\cs{@cclv},
+% before anything is added to it (\cs{mfx@readcolumn}), in the kernel's hook
+% |build/column/before| where \cs{@makecol} has it, or else (\pkg{memoir})
+% before \cs{@makecol}, and keep the reading for the margin of the same
+% column, by its page number (\cs{mfx@colpage}).  Where no such reading was
+% made, because a package replaced \cs{@makecol} by one of its own, we read
+% \cs{@outputbox} as before.
+%
+% If such glue is left inside, which a package's output routine could put
+% there, we don't split at all: a box that fits into no height, and less,
+% has it.  (We test at $-10\,000$\,pt rather than at no height, which an
+% empty page or one whose glue shrinks by its whole height fits into
+% without such glue.)  Then we read \cs{botmarks} instead
+% (\cs{MFX@marksfallback}), which is right if the page has a callout of its
+% own: then its last mark is that callout's.  If it has none, \cs{botmarks}
+% names the last callout that a run of the output routine for this page saw,
+% whose line may have gone on to the next page.  A page whose \cs{botmarks}
+% differs from its \cs{topmarks} (what the previous run of the output routine
+% left) has a mark of its own.  (Comparing \cs{firstmarks} with \cs{topmarks}
+% is not enough: the line of the last callout that the previous run saw is
+% given back to the page and read again, so a page whose first callout that
+% is has them equal.)  Otherwise the page has either the callouts after
+% \cs{mfx@lastid} up to \cs{botmarks}, or none, and we can't tell which; we
+% keep \cs{mfx@lastid} as it was, which holds those notes for the next page,
+% and record this page for each of them (\cs{mfx@cpq@}\meta{number}), so
+% that the note's warning, where it is set, names the pages its callout may
+% be on (\cs{mfx@callout@pages}).  With glue left in every page, a page
+% whose only callout is the one the previous page held is ambiguous in the
+% same way, and holds it again.  If there are no such notes, nothing is
+% held.
 %
 % (Up to 306a3b9 the split ran on regardless, in batch mode, and its
 % complaint still went to the log as an error.  We tried \cs{botmarks}
 % throughout, with a mark of ours at the top of every page so that it
 % names a callout of this page: but those marks keep \LaTeX's
 % \cs{clearpage} going for ever when a float holds a \cs{marginpar}, which
-% \LaTeX\ loses with an error.)
+% \LaTeX\ loses with an error.  Peeling the glue off with \cs{vsplit} to no
+% height complains of the glue as well.)
 %    \begin{macrocode}
+\def\MFX@untail{%
+  \ifcase\numexpr\lastnodetype-10\relax
+  \or\unskip\expandafter\MFX@untail
+  \or\unkern\expandafter\MFX@untail
+  \or\unpenalty\expandafter\MFX@untail
+  \fi}
+\def\MFX@readmarks#1{%
+  \setbox\z@\vbox{\unvcopy#1\MFX@untail
+    \setbox\tw@\lastbox
+    \ifnum\lastnodetype<\z@ \ifvbox\tw@ \unvbox\tw@ \fi\fi}%
+  \let\mfx@tmp\@empty
+  \setbox\tw@\vbox to-\@M\p@{\unvcopy\z@}%
+  \ifnum\badness<1000000
+    \let\mfx@tmp\relax
+  \else
+    \loop
+      \setbox\tw@\vsplit\z@ to\maxdimen
+      \edef\reserved@a{\splitbotmarks\mfx@marks}%
+      \ifx\reserved@a\@empty\else\let\mfx@tmp\reserved@a\fi
+    \unless\ifvoid\z@
+    \repeat
+  \fi}
+\def\MFX@marksettings{%
+  \vbadness\@M \vfuzz\maxdimen \hbadness\@M \hfuzz\maxdimen
+  \splittopskip\z@skip \splitmaxdepth\maxdimen}
+\let\mfx@colpage\relax
+\let\mfx@colmarks\@empty
+\def\mfx@readcolumn{%
+  \ifvoid\@cclv
+    \global\let\mfx@colpage\relax
+  \else
+    \begingroup
+      \MFX@marksettings
+      \MFX@readmarks\@cclv
+      \global\let\mfx@colmarks\mfx@tmp
+    \endgroup
+    \xdef\mfx@colpage{\the\c@page}%
+  \fi}
+\AtBeginDocument{%
+  \edef\reserved@a{\meaning\@makecol}%
+  \edef\reserved@b{\detokenize{\UseHook{build/column/before}}}%
+  \edef\reserved@a{\noexpand\in@{\reserved@b}{\reserved@a}}%
+  \reserved@a
+  \ifin@
+    \AddToHook{build/column/before}{\mfx@readcolumn}%
+  \else
+    \let\MFX@orig@makecol\@makecol
+    \def\@makecol{\mfx@readcolumn\MFX@orig@makecol}%
+  \fi}
 \def\mfx@lastcallout{%
   \ifvoid\@outputbox\else
     \begingroup
-      \vbadness\@M \vfuzz\maxdimen \hbadness\@M \hfuzz\maxdimen
-      \splittopskip\z@skip \splitmaxdepth\maxdimen
-      \setbox\z@\vbox{\unvcopy\@outputbox
-        \unskip
-        \setbox\tw@\lastbox
-        \ifnum\lastnodetype<\z@ \ifvbox\tw@ \unvbox\tw@ \fi\fi}%
-      \let\mfx@tmp\@empty
-      \setbox\tw@\vbox to\z@{\unvcopy\z@}%
-      \ifnum\badness<1000000
-        \edef\mfx@tmp{\botmarks\mfx@marks}%
-        \edef\reserved@a{\firstmarks\mfx@marks}%
-        \edef\reserved@b{\topmarks\mfx@marks}%
-        \ifx\reserved@a\reserved@b
-          \let\mfx@tmp\@empty
-          \PackageWarningNoLine{marginfix}{Can't read the callouts of page
-            \thepage\space (glue that\MessageBreak shrinks without limit):
-            notes called out near its end\MessageBreak may be set on the
-            next page}%
-        \fi
+      \MFX@marksettings
+      \edef\reserved@a{\the\c@page}%
+      \ifx\reserved@a\mfx@colpage
+        \let\mfx@tmp\mfx@colmarks
       \else
-        \loop
-          \setbox\tw@\vsplit\z@ to\maxdimen
-          \edef\reserved@a{\splitbotmarks\mfx@marks}%
-          \ifx\reserved@a\@empty\else\let\mfx@tmp\reserved@a\fi
-        \unless\ifvoid\z@
-        \repeat
+        \MFX@readmarks\@outputbox
+      \fi
+      \ifx\mfx@tmp\relax
+        \MFX@marksfallback
       \fi
       \ifx\mfx@tmp\@empty\else
         \mfx@callout@pages
@@ -1119,14 +1177,44 @@
       \fi
     \endgroup
   \fi
+  \global\let\mfx@colpage\relax
 }
+%    \end{macrocode}
+% \end{macros}
+%
+% \begin{macros}{\MFX@marksfallback}
+%    \begin{macrocode}
+\def\MFX@marksfallback{%
+  \edef\mfx@tmp{\botmarks\mfx@marks}%
+  \edef\reserved@b{\topmarks\mfx@marks}%
+  \ifx\mfx@tmp\reserved@b
+    \ifnum0\mfx@tmp>\mfx@lastid
+      \@tempcnta\mfx@lastid
+      \loop\ifnum\@tempcnta<\mfx@tmp\relax
+        \advance\@tempcnta\@ne
+        \expandafter\ifx\csname mfx@cpq@\the\@tempcnta\endcsname\relax
+          \expandafter\xdef\csname mfx@cpq@\the\@tempcnta\endcsname{%
+            \thepage}%
+        \fi
+      \repeat
+      \PackageInfo{marginfix}{Can't read the callouts of page \thepage
+        \MessageBreak (glue that shrinks without limit): holding the
+        notes\MessageBreak called out since the last page read}%
+    \fi
+    \let\mfx@tmp\@empty
+  \fi}
 %    \end{macrocode}
 % \end{macros}
 %
 % \begin{macros}{\mfx@callout@pages,\MFX@check@page}
 % The callouts from just after \cs{mfx@lastid} up to the one just read are
 % those of this page, so we note their page, under their number:
-% \cs{mfx@cp@}\meta{number}, as \cs{c@page} and as \cs{thepage}.  When a
+% \cs{mfx@cp@}\meta{number}, as \cs{c@page} and as \cs{thepage}.  For a
+% callout that an earlier page held because its marks couldn't be read
+% (\cs{mfx@cpq@}\meta{number}, above), the page is that one, this one, or
+% one between them that couldn't be read either: we note $-1$, which is no
+% page, so that the note is warned about wherever it is set, and the first
+% and the last page its callout may be on.  When a
 % note goes into the margin (\cs{MFX@piece@note@up}), \cs{MFX@check@page}
 % compares: a note set on another page than its callout's gets a warning,
 % naming where it is called out and both pages, so that no note leaves its
@@ -1143,8 +1231,15 @@
   \@tempcnta\mfx@lastid
   \loop\ifnum\@tempcnta<\mfx@tmp\relax
     \advance\@tempcnta\@ne
-    \expandafter\xdef\csname mfx@cp@\the\@tempcnta\endcsname{%
-      {\number\c@page}{\thepage}}%
+    \expandafter\ifx\csname mfx@cpq@\the\@tempcnta\endcsname\relax
+      \expandafter\xdef\csname mfx@cp@\the\@tempcnta\endcsname{%
+        {\number\c@page}{\thepage}}%
+    \else
+      \expandafter\xdef\csname mfx@cp@\the\@tempcnta\endcsname{%
+        {-1}{\csname mfx@cpq@\the\@tempcnta\endcsname\space to \thepage}}%
+      \expandafter\global\expandafter\let
+        \csname mfx@cpq@\the\@tempcnta\endcsname\relax
+    \fi
   \repeat}
 \def\MFX@check@page#1{%
   \def\mfx@chkbox{#1}%
@@ -1158,6 +1253,7 @@
 \def\MFX@check@page@#1#2{%
   \ifnum#1=\c@page\else
     \MFX@islow\mfx@chkbox
+    \ifnum#1<\z@\@tempswafalse\fi
     \if@tempswa
       \@tempswafalse
       \ifx\mfx@priority\MFX@priority@warn\@tempswatrue\fi

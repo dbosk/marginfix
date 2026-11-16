@@ -1,0 +1,51 @@
+% Test that a page broken inside a longtable, with a footnote on it, keeps its
+% notes.  longtable ends such a page with \vss, glue that shrinks without
+% limit, which marginfix takes off the end of the page before it reads the
+% marks in it; but the kernel (since 2020-10) and memoir put the footnotes
+% after the text before marginfix builds the margin, so the \vss is no longer
+% at the end there.  Up to e852911 marginfix then fell back to \botmarks,
+% held note A, called out in the first line, for page 2, and warned only that
+% notes called out near the end of page 1 may be set on the next page.
+%
+% Two runs: the second checks, from the labels of the first, that each note
+% is on its callout's page; make runs it in article and memoir.
+\providecommand\ltclass{article}
+\documentclass{\ltclass}
+\usepackage{longtable}
+\usepackage{marginfix}
+\pagestyle{empty}
+
+\makeatletter
+\providecommand\ltrun{0}
+\AtBeginDocument{\if@filesw\immediate\write\@auxout{%
+  \gdef\string\ltrun{\the\numexpr\ltrun+1\relax}}\fi}
+\def\ltpage#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax ??\else
+    \expandafter\expandafter\expandafter\lt@page
+      \csname r@#1\endcsname\@nil\fi}
+\def\lt@page#1#2#3\@nil{#2}
+\def\ltcheck#1{%
+  \edef\callout{\ltpage{callout-#1}}\edef\note{\ltpage{note-#1}}%
+  \ifx\callout\note
+    \typeout{ltfoot test: note #1 on page \note, as its callout}%
+  \else
+    \PackageError{ltfoot test}{Note #1 on page \note, its callout on
+      page \callout}{}%
+  \fi}
+\let\ltrows\@empty
+\count@\z@
+\loop\advance\count@\@ne \edef\ltrows{\unexpanded\expandafter{\ltrows}Row \the\count@\noexpand\\}%
+\ifnum\count@<80 \repeat
+\makeatother
+
+\begin{document}
+Text with a note\label{callout-A}\marginpar{A.\label{note-A}} and a
+footnote\footnote{A footnote.}.
+\begin{longtable}{l}
+\endhead
+\ltrows
+\end{longtable}
+After the table\label{callout-B}\marginpar{B.\label{note-B}}.
+
+\ifnum\ltrun=1 \ltcheck{A}\ltcheck{B}\fi
+\end{document}
