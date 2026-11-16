@@ -1,0 +1,69 @@
+% Test that an ordinary note taller than the margin is split, not lost.
+%
+% Note A is taller than the whole margin of a page.  Up to ac62285 it never
+% fitted, was carried from page to page, and \dumpmargins at the end gave
+% the error "lost some margin notes", in every mode.  Now it is split as a
+% deferrable note is: its first part is set beside its callout, and the
+% rest continues on the next page.  Note B, called out after it in the same
+% full margin, can't stay on its page, but it must be set (with a warning).
+% \tallmode chooses the priority mode (warn or split); with \tallfoot,
+% the notes are footnotes set in memoir's margin.
+%
+% Two runs: the second checks, from the labels of the first, that note A
+% starts on the page of its callout and that note B is set; any error stops
+% make.
+% It tests a change of the layout (before, the note was lost), so the
+% regression test skips it.
+% regress: skip
+\ifdefined\tallfoot
+  \documentclass[a5paper]{memoir}
+\else
+  \documentclass{article}
+  \usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\fi
+\usepackage{marginfix}
+\ifdefined\tallfoot \footnotesinmargin \fi
+\providecommand\tallmode{warn}
+\marginnotepriority{\tallmode}
+\pagestyle{empty}
+
+\makeatletter
+\providecommand\tnrun{0}
+\AtBeginDocument{\if@filesw\immediate\write\@auxout{%
+  \gdef\string\tnrun{\the\numexpr\tnrun+1\relax}}\fi}
+\def\tnpage#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax ??\else
+    \expandafter\expandafter\expandafter\tn@page
+      \csname r@#1\endcsname\@nil\fi}
+\def\tn@page#1#2#3\@nil{#2}
+\newcommand{\fillwords}[1]{\count@=#1\relax
+  \loop\ifnum\count@>\z@ lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count@\m@ne\repeat}
+\def\tncheck#1{%
+  \edef\callout{\tnpage{callout-#1}}\edef\note{\tnpage{note-#1}}%
+  \ifx\callout\note
+    \typeout{tallnote test (\tallmode\ifdefined\tallfoot, footnotes\fi): note #1 starts on page \note, as its
+      callout}%
+  \else
+    \PackageError{tallnote test}{Note #1 starts on page \note, its callout
+      on page \callout}{}%
+  \fi}
+\makeatother
+
+\begin{document}
+\ifdefined\tallfoot
+  \def\tnnote#1#2{\footnote{\label{note-#1}#1: \fillwords{#2}}}
+\else
+  \def\tnnote#1#2{\marginpar{\label{note-#1}#1: \fillwords{#2}}}
+\fi
+Start\label{callout-A}\tnnote A{30} \fillwords{20}
+Then\label{callout-B}\tnnote B{1} \fillwords{60}
+
+\ifnum\tnrun=1 \tncheck A%
+  \expandafter\ifx\csname r@note-B\endcsname\relax
+    \PackageError{tallnote test}{Note B is lost}{}%
+  \else
+    \typeout{tallnote test (\tallmode\ifdefined\tallfoot, footnotes\fi): note B is set, on page \tnpage{note-B}}%
+  \fi
+\fi
+\end{document}

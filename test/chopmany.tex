@@ -1,0 +1,21 @@
+% Test that a list of long notes doesn't run out of LaTeX's boxes.
+%
+% Sixty notes, each several margins long, one per paragraph of a short
+% text: all wait for the margin at once.  Up to af02b5a every tall note in the
+% list was split before each page's margin was built, also those that
+% couldn't start on that page, and each piece held a pair of boxes: the list
+% ran out of LaTeX's boxes ("Too many unprocessed floats", found by the fuzz
+% check, seed 39) and lost all notes but one.  Now a tall note is split only
+% when it can start on the page.  The run must end without an error, every
+% note set (labels n1 to n60).
+% regress: skip
+\documentclass{article}
+\usepackage{lipsum}
+\usepackage{marginfix}
+\extrafloats{150}
+\pagestyle{empty}
+\begin{document}
+\newcount\k
+\loop\advance\k1 \lipsum[2][1-2] x\marginpar{\footnotesize\label{n\the\k}N\the\k\ \lipsum[1-6]} \par\ifnum\k<60 \repeat
+text\par
+\end{document}

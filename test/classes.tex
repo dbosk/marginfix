@@ -1,0 +1,18 @@
+% Every standard class and memoir gets its notes, whatever the version of
+% marginfix: the kernel's first aid attaches them only for the file info of
+% v1.2, so marginfix repoints \@outputbox@attachfloats itself.  The
+% Makefile runs this for article, report, book and memoir and checks that no
+% note is lost and that every note's label is written.
+\providecommand\testclass{article}
+\documentclass{\testclass}
+\usepackage{marginfix}
+\makeatletter
+\newcommand{\fillwords}[1]{\count@=#1\relax
+  \loop\ifnum\count@>\z@ lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count@\m@ne\repeat}
+\makeatother
+\newcommand{\note}[1]{\marginpar{\label{n#1}Note #1.}}
+\begin{document}
+\fillwords{5}A\note{1} \fillwords{10}B\note{2} \fillwords{40}
+C\note{3} \fillwords{60}D\note{4} \fillwords{5}
+\end{document}

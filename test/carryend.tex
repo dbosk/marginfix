@@ -1,0 +1,37 @@
+% Test that a note marginfix sets on a page it adds at the end of the
+% document is warned about too.
+%
+% Six notes in the last paragraph of a one-page document, each a third of the
+% margin: the last three are set on the page \dumpmargins adds.  Up to
+% 9d37f16 the end of the document flushed the notes waiting for their
+% callouts (\mfx@flush@deferred) by taking every callout as read before the
+% last page was built, so that the pages of those callouts were never
+% recorded, and no warning came for any note set on another page (found by
+% didactic's tests, test-noteoverflow-carry).  Now their pages are recorded
+% first.  Two runs: the second compares the labels of the first with the
+% warnings (make checks): as many warnings as notes off their callout's page,
+% and some.
+% regress: skip
+\documentclass{article}
+\usepackage{marginfix}
+\makeatletter
+\providecommand\mfrun{0}
+\AtBeginDocument{\if@filesw\immediate\write\@auxout{%
+  \gdef\string\mfrun{\the\numexpr\mfrun+1\relax}}\fi}
+\def\mfpage#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax 0\else
+    \expandafter\expandafter\expandafter\mf@page
+      \csname r@#1\endcsname\@nil\fi}
+\def\mf@page#1#2#3\@nil{#2}
+\newcount\mfoff
+\AtEndDocument{\ifnum\mfrun>0
+  \count@\z@\loop\advance\count@\@ne
+    \ifnum\mfpage{c\the\count@}=\mfpage{n\the\count@}\else\advance\mfoff\@ne\fi
+  \ifnum\count@<6 \repeat
+  \typeout{carryend test: off=\the\mfoff}\fi}
+\makeatother
+\begin{document}
+\newcount\k
+Text \loop\advance\k1 x\label{c\the\k}\marginpar{\label{n\the\k}N\the\k\par
+  \rule{1pt}{.3\textheight}} \ifnum\k<6 \repeat
+\end{document}

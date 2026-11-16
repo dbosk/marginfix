@@ -1,0 +1,22 @@
+% Test that a note taller than a margin too short to try a split in is still
+% set, as it is, with a warning, and doesn't take the notes after it along.
+% With test/chopgap.tex a note whose split finds too little room stays whole
+% for a later page; at the top of a page, with nothing before it, no later
+% page has more room, so it is set as it is.  Without that it was carried to
+% the end of the document and lost there, with the note after it ("lost some
+% margin notes").  The margin is 30pt high, less than \Mfx@splitmin with
+% \marginparpush and a point.  make checks for no error and both labels.
+% regress: skip
+\documentclass{article}
+\usepackage{marginfix}
+\pagestyle{empty}
+\makeatletter
+\newcommand{\fillwords}[1]{\count@=#1\relax
+  \loop\ifnum\count@>\z@ lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count@\m@ne\repeat}
+\makeatother
+\AtBeginDocument{\marginheightadjustment=\dimexpr-\textheight+30pt\relax}
+\begin{document}
+A\marginpar{\label{n1}N1 \fillwords{4}} B\marginpar{\label{n2}N2.}
+\fillwords{30}
+\end{document}

@@ -1,0 +1,35 @@
+% A \marginpar where LaTeX can't take it (in a minipage, a float, a
+% footnote, an \mbox) or where a package drops it (multicols): marginfix
+% must behave as LaTeX does without it, with the same error or warning, and
+% end; and the notes around it keep their pages.  test/innercalloutcheck.sh
+% runs each case (\innercase) with and without marginfix (\usemf) and
+% compares.  A float holding a \marginpar once kept \clearpage going for
+% ever (with the marks of ca87398).
+% regress: skip
+\documentclass{article}
+\usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\usepackage{multicol}
+\providecommand\usemf{\usepackage{marginfix}}
+\usemf
+\providecommand\innercase{none}
+\newcommand{\fillwords}[1]{\count0=#1\relax
+  \loop\ifnum\count0>0 lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count0 -1\repeat}
+\expandafter\def\csname inner-minipage\endcsname{%
+  \begin{minipage}{3cm}in a minipage\marginpar{lost}\end{minipage}}
+\expandafter\def\csname inner-multicols\endcsname{%
+  \begin{multicols}{2}in multicols\marginpar{dropped} \fillwords{3}\end{multicols}}
+\expandafter\def\csname inner-figure\endcsname{%
+  \begin{figure}[h]in a float\marginpar{lost}\end{figure}}
+\expandafter\def\csname inner-footnote\endcsname{%
+  Text\footnote{in a footnote\marginpar{lost}}.}
+\expandafter\def\csname inner-mbox\endcsname{\mbox{in a box\marginpar{lost}}}
+\expandafter\def\csname inner-none\endcsname{}
+\begin{document}
+\fillwords{3}\marginpar{One.}
+\csname inner-\innercase\endcsname
+\fillwords{30}
+{\interlinepenalty=10000
+Line one.\\ Line two.\\ Line three.\\ Line four\marginpar{Two.} here.\\ Line five.\par}
+\fillwords{40}
+\end{document}

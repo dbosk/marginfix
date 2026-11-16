@@ -1,0 +1,25 @@
+% Test that splitting a note taller than the margin ends.
+%
+% Case 1: a note of a short line and a rule, taller than the margin less
+% \marginparpush but not than the margin: it fits on a page of its own and
+% must not be split.  Case 2: a short line and a rule taller than the whole
+% margin: after the first split the rest is one line that can't be split
+% again, and a split that doesn't make the note shorter must not be taken.
+% Up to b16f607 (the split of tall notes) case 1 was split into a rest
+% taller than the note, which was split again on every page, for ever; case 2
+% the same.  Each must now end within a few pages; the rest of case 2, which
+% fits on no page, is set as it is with a warning (see test/splitrest.tex).
+% It tests a change of the layout (before, it never ended), so the regression
+% test skips it.
+% regress: skip
+\documentclass{article}
+\usepackage{marginfix}
+\pagestyle{empty}
+\begin{document}
+\ifcase\tallcase\or
+  x\marginpar{TALL\par\rule{1pt}{.985\textheight}} text\par
+\or
+  x\marginpar{TALL\par\rule{1pt}{1.01\textheight}} text\par
+\fi
+\newpage z
+\end{document}

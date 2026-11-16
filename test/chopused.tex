@@ -1,0 +1,20 @@
+% Test that many notes waiting for the margin don't overflow a dimension.
+%
+% Forty notes, each nine tenths of the margin, called out in one paragraph,
+% and one taller than the margin after them.  Before the margin is built,
+% the room the notes before a tall one leave is estimated by adding up their
+% heights (\Mfx@chop@used), over the whole list: forty notes passed TeX's
+% largest dimension, "Dimension too large", up to 63efdbc (found by the fuzz
+% check, in 48 of 150 documents).  Now the sum stops at the margin's height,
+% past which no room is left on the page anyway.  The run must end without an
+% error, every note set (labels n1 to n41).
+% regress: skip
+\documentclass{article}
+\usepackage{marginfix}
+\extrafloats{100}
+\pagestyle{empty}
+\begin{document}
+\newcount\k
+\loop\advance\k1 x\marginpar{\label{n\the\k}\rule{1pt}{.9\textheight}} \ifnum\k<40 \repeat
+y\marginpar{\label{n41}N41\par\rule{1pt}{1.2\textheight}} text\par
+\end{document}

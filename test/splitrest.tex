@@ -1,0 +1,28 @@
+% Test that a note no page can hold ends, and doesn't take the notes after it.
+%
+% Case 1 (from the fuzz check, seed 1): a deferrable note of a line and a rule
+% one and a half margins tall, in mode split.  Its first split leaves a rest
+% that is one line taller than the margin; it was split again on every page,
+% with no part shorter, for ever (also on fork/marks-anchor).  Case 2: a
+% plain note taller than the margin that can't be split at all, then an
+% ordinary note: the first was never set, and the second, behind it, was
+% lost with it at the end of the document.  Now a split is taken only if it
+% shortens the note, and a note taller than the margin that can't be split
+% is set as it is, running over the foot of the margin, with a warning.  Both
+% cases must end within a few pages with every note set (the labels n1, n2).
+% regress: skip
+\documentclass{article}
+\usepackage{marginfix}
+\marginnotepriority{split}
+\setlength\marginparpush{0pt}
+\pagestyle{empty}
+\begin{document}
+\ifcase\splitcase\or
+  x\marginpar{\marginnotedeferrable\label{n1}N1\par\rule{1pt}{1.466\textheight}}
+  text\par
+\or
+  x\marginpar{\label{n1}\rule{1pt}{1.2\textheight}} text
+  y\marginpar{\label{n2}N2} text\par
+\fi
+\newpage z
+\end{document}

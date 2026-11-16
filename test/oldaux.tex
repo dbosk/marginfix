@@ -1,0 +1,25 @@
+% The first run on an .aux that an older marginfix wrote (test/oldaux.aux16:
+% one record of every shape that the branch integration, v1.6, wrote in any
+% of its revisions: \mfx@anchorpage, \mfx@yield, \mfx@yieldfirm,
+% \mfx@yieldtries, \mfx@yieldht, \mfx@noyield, \mfx@noyieldat,
+% \mfx@noyieldfirm, and \mfx@unyield with two and with three arguments)
+% must not stop with an error: the records are read and ignored.  The
+% Makefile copies the file to oldaux.aux and runs LaTeX once.
+\documentclass{article}
+\usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\usepackage{marginfix}
+\ifdefined\marginnoteoverflow\marginnoteoverflow{break}\fi
+\makeatletter
+\newcommand{\fillwords}[1]{\count@=#1\relax
+  \loop\ifnum\count@>\z@ lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count@\m@ne\repeat}
+\makeatother
+\begin{document}
+\fillwords{20}
+A\marginpar{\fillwords{6}} \fillwords{3}
+B\marginpar{\fillwords{6}} \fillwords{3}
+C\marginpar{\fillwords{6}} \fillwords{3}
+D\marginpar{\fillwords{6}} \fillwords{3}
+E\marginpar{\fillwords{6}} \fillwords{3}
+\fillwords{60}
+\end{document}

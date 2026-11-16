@@ -6,6 +6,8 @@
 % which calls out a note.  On page 3, a paragraph of 19 lines is followed by
 % one whose first line calls out a note, with \clubpenalty 10000: that line
 % must not stay alone at the foot, so page 3 ends with F19.
+% It tests a change of the layout, so the regression test skips it.
+% regress: skip
 \documentclass{article}
 \usepackage{marginfix}
 \setlength\topskip{10pt}

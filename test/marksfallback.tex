@@ -1,0 +1,95 @@
+% Test that a page whose marks can't be read cleanly doesn't misplace a note
+% silently.  As test/anchormarks.tex (a note handed to the page before its
+% callout's line, page 1 having no callout of its own), with glue that
+% shrinks without limit in the page while marginfix reads it, in two cases
+% (\fbcase):
+%
+% outputbox: the glue is in \@outputbox when marginfix builds the margin (as
+%   in test/marksquiet.tex), but not in the column \@makecol starts with,
+%   where marginfix reads the marks: note D must be on its callout's page.
+% column: the glue is in the column itself, before a box, from the start of
+%   \@makecol on, so that marginfix can't split it and falls back to \botmarks,
+%   which on such a page names the note handed to it.  The note must be on
+%   its callout's page, or warned about by name, with page 1 and the page it
+%   is set on (make checks).  Up to e852911 the log said only that notes
+%   called out near the end of page 1 may be set on the next page.
+% regress: skip
+%
+% The paragraph of five lines is unbreakable, and the filler before it is
+% measured so that only the paragraph's last line would overflow the first
+% page: LaTeX hands the note on line four to the first page, and then
+% breaks the page before the paragraph.  Up to v1.5 the first run set the
+% note on page 1 and the second run, from the anchor page in the .aux file,
+% moved it; now the marks in the page tell the first run.
+%
+% Two runs: the second checks, from the labels of the first, that the note
+% was set on the page of its callout.
+\documentclass{article}
+\usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\usepackage{marginfix}
+\pagestyle{empty}
+
+\makeatletter
+\providecommand\fbcase{outputbox}
+\let\mf@cfb\MFX@combinefloats@before
+\def\mf@outputbox{%
+  \setbox\@outputbox\vbox{\unvbox\@outputbox\vskip\z@ minus 1fil\kern\z@}%
+  \mf@cfb
+  \setbox\@outputbox\vbox{\unvbox\@outputbox\unkern\unskip}}
+% column: the glue and an empty box after it, so that it isn't at the end,
+% go into \box255 before anything in \@makecol reads it (our wrapper is
+% made after marginfix's, so it runs first), and come off again once the
+% margin is built, when the page has no footnotes or floats after the text
+% (the kernel splits the page for its own marks later, and would complain).
+\def\mf@column{%
+  \mf@cfb
+  \setbox\@outputbox\vbox{\unvbox\@outputbox\setbox\z@\lastbox\unskip}}
+\expandafter\let\expandafter\MFX@combinefloats@before
+  \csname mf@\fbcase\endcsname
+\def\mf@temp{column}\ifx\fbcase\mf@temp
+  \AtBeginDocument{%
+    \let\mf@makecol\@makecol
+    \def\@makecol{%
+      \ifvoid\@cclv\else
+        \setbox\@cclv\vbox{\unvbox\@cclv\vskip\z@ minus 1fil\hbox{}}%
+      \fi
+      \mf@makecol}}
+\fi
+\providecommand\mfrun{0}
+\AtBeginDocument{\if@filesw\immediate\write\@auxout{%
+  \gdef\string\mfrun{\the\numexpr\mfrun+1\relax}}\fi}
+% \mfpage{<label>}: the page of a label, from the second field of \r@<label>
+\def\mfpage#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax ??\else
+    \expandafter\expandafter\expandafter\mf@page
+      \csname r@#1\endcsname\@nil\fi}
+\def\mf@page#1#2#3\@nil{#2}
+% \fillwords{<n>}: n times twelve words of filler
+\newcommand{\fillwords}[1]{\count@=#1\relax
+  \loop\ifnum\count@>\z@ lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count@\m@ne\repeat}
+\makeatother
+
+\begin{document}
+Start. \fillwords{34}
+
+{\interlinepenalty=10000
+Line one of the straddling paragraph.\\
+Line two of the straddling paragraph.\\
+Line three of the straddling paragraph.\\
+Line four, with the callout\label{callout-D}\marginpar{D: its callout is on
+  this page.\label{note-D}} on it.\\
+Line five, the last; the paragraph is unbreakable.\par}
+
+\fillwords{40}
+
+\ifnum\mfrun=1
+  \edef\callout{\mfpage{callout-D}}\edef\note{\mfpage{note-D}}%
+  \ifx\callout\note
+    \typeout{marksfallback test: on its page: note D on page \note}%
+  \else
+    \typeout{marksfallback test: off its page: note D on page \note, its
+      callout on page \callout}%
+  \fi
+\fi
+\end{document}

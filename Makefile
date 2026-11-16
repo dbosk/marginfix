@@ -21,11 +21,59 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchorkeys.pdf priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf ltfoot-test marksfallback-test oldaux-test classes-test carrywarn-test tallnote-test tallrest-test splitrest-test chopgap-test chopused-test chopmany-test carryend-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
-	$(SIDE_CASES:%=side-%.pdf) \
-	overflow-test stale-test midfloat-test calloutbreak-test
+	midfloat-test calloutbreak-test innercallout-test $(SIDE_CASES:%=side-%.pdf)
+
+# A page whose marks can't be read cleanly (see test/marksfallback.tex): with
+# the glue in \@outputbox only, the note is on its callout's page; with it in
+# the column, the note is on its page or warned about by name, with the pages
+# its callout may be on, from page 1, and the page it is set on.
+.PHONY: marksfallback-test
+marksfallback-test:marginfix.sty test/marksfallback.tex
+	for c in outputbox column; do ${RM} marksfallback-$$c.aux; \
+	  for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode -jobname=marksfallback-$$c \
+	    "\\def\\fbcase{$$c}\\input{test/marksfallback}" >/dev/null \
+	  || { grep -A3 '^!' marksfallback-$$c.log; exit 1; }; done; \
+	  grep 'marksfallback test:' marksfallback-$$c.log; done
+	@grep -q 'marksfallback test: on its page' marksfallback-outputbox.log \
+	  || { echo "marksfallback outputbox: note off its page"; exit 1; }
+	@l=$$(grep -n 'callout-D}.marginpar' test/marksfallback.tex | cut -d: -f1); \
+	  grep -q 'marksfallback test: on its page' marksfallback-column.log \
+	  || tr -d '\n' < marksfallback-column.log | grep -Eq \
+	    "called out at *(\(marginfix\))? *test/marksfallback.tex:$$l *(\(marginfix\))? *on page 1 to [0-9]+ is set on page [0-9]" \
+	  || { echo "marksfallback column: note D off its page, not warned by name and pages"; exit 1; }
+	@echo "marksfallback: as required"
+
+# Every standard class and memoir gets its notes at this version, which the
+# kernel's first aid doesn't know (test/classes.tex).
+CLASSES=article report book memoir
+.PHONY: classes-test
+classes-test:marginfix.sty test/classes.tex
+	for c in $(CLASSES); do \
+	  pdflatex -interaction=nonstopmode -jobname=classes-$$c \
+	    "\\def\\testclass{$$c}\\input{test/classes}" >/dev/null \
+	  || { grep -A3 '^!' classes-$$c.log; exit 1; }; \
+	  ! grep -q 'lost some margin notes' classes-$$c.log \
+	  && test "$$(grep -c 'newlabel{n' classes-$$c.aux)" = 4 \
+	  || { echo "classes: $$c loses notes"; exit 1; }; \
+	  echo "classes: $$c sets every note"; done
+
+# The first run on an .aux of an older version (test/oldaux.tex) has no error.
+.PHONY: oldaux-test
+oldaux-test:marginfix.sty test/oldaux.tex test/oldaux.aux16
+	cp test/oldaux.aux16 oldaux.aux
+	pdflatex -interaction=nonstopmode test/oldaux.tex >/dev/null \
+	  || { grep -A3 '^!' oldaux.log; exit 1; }
+	@echo "oldaux: the first run on an .aux of v1.6 has no error"
+
+# A \marginpar where LaTeX can't take it, or multicols drops it: as without
+# marginfix, and it ends (test/innercallout.tex).
+.PHONY: innercallout-test
+innercallout-test:marginfix.sty
+	test/innercalloutcheck.sh
 
 margintest.pdf:marginfix.sty test/margintest.tex
 	pdflatex test/margintest.tex
@@ -63,14 +111,179 @@ anchorpage.pdf:marginfix.sty test/anchorpage.tex
 	pdflatex test/anchorpage.tex
 	pdflatex test/anchorpage.tex
 
-# Three runs from no .aux: the second adds a note, the third checks the
-# placement in the second (see test/anchorkeys.tex).
-anchorkeys.pdf:marginfix.sty test/anchorkeys.tex
-	${RM} anchorkeys.aux
-	for i in 1 2 3; do \
-	  pdflatex -interaction=nonstopmode test/anchorkeys.tex >/dev/null \
-	  || { grep -A3 '^!' anchorkeys.log; exit 1; }; done
-	@grep 'anchorkeys test:' anchorkeys.log
+# A note handed to the page before its callout's line is set on the
+# callout's page in the first run; the second run checks the first's labels
+# (see test/anchormarks.tex).
+anchormarks.pdf:marginfix.sty test/anchormarks.tex
+	${RM} anchormarks.aux
+	for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode test/anchormarks.tex >/dev/null \
+	  || { grep -A3 '^!' anchormarks.log; exit 1; }; done
+	@grep 'anchormarks test:' anchormarks.log
+
+# Injected marginpars (\marginphantom, \blockmargin) don't put the numbers
+# of callouts and notes out of step (see test/injectmarks.tex).
+injectmarks.pdf:marginfix.sty test/injectmarks.tex
+	${RM} injectmarks.aux
+	for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode test/injectmarks.tex >/dev/null \
+	  || { grep -A3 '^!' injectmarks.log; exit 1; }; done
+	@grep 'injectmarks test:' injectmarks.log
+
+# A float in the text with a side caption keeps the margin beside it empty
+# (test/midfloat.tex); needs pdftotext.
+.PHONY: midfloat-test
+midfloat-test:marginfix.sty
+	test/midfloatcheck.sh
+
+# A line that calls out a note in a paragraph may end a page, and a first line
+# with a note isn't left alone at the foot when the club penalty forbids it
+# (test/calloutbreak.tex); needs pdftotext.
+.PHONY: calloutbreak-test
+calloutbreak-test:marginfix.sty
+	test/calloutbreakcheck.sh
+
+# An ordinary note taller than the margin is split, not lost, in both
+# modes, and a footnote set in memoir's margin too; the second run checks that it starts beside its callout
+# (see test/tallnote.tex).
+.PHONY: tallnote-test
+tallnote-test:marginfix.sty test/tallnote.tex
+	for m in warn split foot; do ${RM} tallnote-$$m.aux; \
+	  d="\\def\\tallmode{$$m}"; \
+	  [ $$m = foot ] && d="\\def\\tallmode{split}\\def\\tallfoot{}"; \
+	  for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode -jobname=tallnote-$$m \
+	    "$$d\\input{test/tallnote}" >/dev/null \
+	  || { grep -A3 '^!' tallnote-$$m.log; exit 1; }; done; \
+	  grep 'tallnote test' tallnote-$$m.log; done
+
+# Splitting a note taller than the margin ends (see test/tallrest.tex): each
+# case must finish within a minute and a few pages; case 1 without an error.
+.PHONY: tallrest-test
+tallrest-test:marginfix.sty test/tallrest.tex
+	for c in 1 2; do \
+	  timeout 60 pdflatex -interaction=nonstopmode -jobname=tallrest-$$c \
+	    "\\def\\tallcase{$$c}\\input{test/tallrest}" >/dev/null; \
+	  s=$$?; [ $$s = 124 ] && { echo "tallrest $$c: never ends"; exit 1; }; \
+	  [ $$c = 1 ] && [ $$s != 0 ] && { grep -A3 '^!' tallrest-$$c.log; exit 1; }; \
+	  p=$$(grep -o '([0-9]* pages\?' tallrest-$$c.log | grep -o '[0-9]*'); \
+	  [ -n "$$p" ] && [ "$$p" -le 4 ] || { echo "tallrest $$c: $$p pages"; exit 1; }; \
+	  echo "tallrest $$c: ended, $$p pages"; done
+
+# A note no page can hold ends, and the notes after it are set (see
+# test/splitrest.tex): each case within a minute, 20 MB and a few pages, with
+# no error and every note's label written.
+.PHONY: splitrest-test
+splitrest-test:marginfix.sty test/splitrest.tex
+	for c in 1 2; do \
+	  ( ulimit -f 20480; timeout 60 pdflatex -interaction=nonstopmode \
+	    -jobname=splitrest-$$c "\\def\\splitcase{$$c}\\input{test/splitrest}" \
+	    >/dev/null 2>&1 ); \
+	  s=$$?; [ $$s = 0 ] || { echo "splitrest $$c: exit $$s"; \
+	    grep -A3 '^!' splitrest-$$c.log | head -8; exit 1; }; \
+	  p=$$(grep -o '([0-9]* pages\?' splitrest-$$c.log | grep -o '[0-9]*'); \
+	  [ -n "$$p" ] && [ "$$p" -le 4 ] || { echo "splitrest $$c: $$p pages"; exit 1; }; \
+	  for l in n1 $$([ $$c = 2 ] && echo n2); do \
+	    grep -q "newlabel{$$l}" splitrest-$$c.aux || \
+	      { echo "splitrest $$c: note $$l not set"; exit 1; }; done; \
+	  echo "splitrest $$c: ended, $$p pages, every note set"; done
+
+# A note taller than the margin that can be split, behind notes that leave
+# little room, is split, not set as it is (see test/chopgap.tex): no note set
+# as it is, and its last word printed.  And in a margin too short to try a
+# split, such a note is set as it is, not lost (test/choptiny.tex).
+.PHONY: chopgap-test
+chopgap-test:marginfix.sty test/chopgap.tex test/choptiny.tex
+	pdflatex -interaction=nonstopmode test/chopgap.tex >/dev/null \
+	  || { grep -A3 '^!' chopgap.log; exit 1; }
+	! grep -q "can't" chopgap.log \
+	  || { echo "chopgap: a note set as it is"; exit 1; }
+	pdftotext chopgap.pdf - | grep -q BLAST \
+	  || { echo "chopgap: the note's last word is not in the PDF"; exit 1; }
+	@echo "chopgap: split, every word printed"
+	pdflatex -interaction=nonstopmode test/choptiny.tex >/dev/null \
+	  || { grep -A3 '^!' choptiny.log; exit 1; }
+	test "$$(grep -c 'newlabel{n' choptiny.aux)" = 2
+	@echo "choptiny: no error, both notes set"
+
+# Many notes waiting for the margin don't overflow a dimension (see
+# test/chopused.tex): no error, every note set.
+.PHONY: chopused-test
+chopused-test:marginfix.sty test/chopused.tex
+	( ulimit -f 20480; timeout 120 pdflatex -interaction=nonstopmode \
+	  -jobname=chopused test/chopused >/dev/null 2>&1 ) \
+	  || { grep -A3 '^!' chopused.log | head -8; exit 1; }
+	test "$$(grep -c 'newlabel{n' chopused.aux)" = 41
+	@echo "chopused: no error, 41 notes set"
+
+# A list of long notes doesn't run out of LaTeX's boxes (see
+# test/chopmany.tex): no error, every note set.
+.PHONY: chopmany-test
+chopmany-test:marginfix.sty test/chopmany.tex
+	( ulimit -f 20480; timeout 120 pdflatex -interaction=nonstopmode \
+	  -jobname=chopmany test/chopmany >/dev/null 2>&1 ) \
+	  || { grep -A3 '^!' chopmany.log | head -8; exit 1; }
+	test "$$(grep -c 'newlabel{n' chopmany.aux)" = 60
+	@echo "chopmany: no error, 60 notes set"
+
+# Termination on random documents (test/fuzz.py, test/fuzzcheck.py): a fixed
+# sample of 20 seeds, each must end, settle, give the same text on a run more,
+# set every note or name it, and stay within a bound on the pages (see the
+# checker).  FUZZSEEDS and FUZZBASE (a directory with another marginfix.sty,
+# whose builds are checked too, for comparison) can be set.
+FUZZSEEDS?=$(shell seq 1001 1020)
+.PHONY: fuzz-test
+fuzz-test:marginfix.sty test/fuzz.py test/fuzzcheck.py
+	python3 test/fuzzcheck.py --timeout 60 --work fuzz-work \
+	  $(if ${FUZZBASE},--base ${FUZZBASE}) ${FUZZSEEDS}
+
+# A note set on a page \dumpmargins adds is warned about too (see
+# test/carryend.tex): as many warnings as notes off their page, and some.
+.PHONY: carryend-test
+carryend-test:marginfix.sty test/carryend.tex
+	rm -f carryend.aux
+	for i in 1 2; do pdflatex -interaction=nonstopmode -jobname=carryend \
+	  test/carryend >/dev/null || { grep -A3 '^!' carryend.log; exit 1; }; done
+	off=$$(grep -o 'carryend test: off=[0-9]*' carryend.log | grep -o '[0-9]*$$'); \
+	  said=$$(grep -c 'is set on page' carryend.log); \
+	  echo "carryend: $$off off their page, $$said warnings"; \
+	  [ "$$off" -gt 0 ] && [ "$$off" = "$$said" ]
+
+# Every note set on another page than its callout is warned about: the
+# warnings of the second run must be as many as the notes off their page
+# (see test/carrywarn.tex), and there must be some.
+.PHONY: carrywarn-test
+carrywarn-test:marginfix.sty test/carrywarn.tex
+	${RM} carrywarn.aux
+	for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode test/carrywarn.tex >/dev/null \
+	  || { grep -A3 '^!' carrywarn.log; exit 1; }; done
+	@off=$$(sed -n 's/^carrywarn test: \([0-9]*\) notes.*/\1/p' carrywarn.log); \
+	warned=$$(grep -c '^Package marginfix Warning: Margin note called out at' carrywarn.log); \
+	echo "carrywarn test: $$off off their page, $$warned warned"; \
+	test "$$off" -gt 0 && test "$$off" -eq "$$warned"
+
+# A page broken in a longtable, with a footnote, keeps its notes: in article
+# and memoir, the second run checks that each note is on its callout's page
+# (see test/ltfoot.tex).
+.PHONY: ltfoot-test
+ltfoot-test:marginfix.sty test/ltfoot.tex
+	for c in article memoir; do ${RM} ltfoot-$$c.aux; \
+	  for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode -jobname=ltfoot-$$c \
+	    "\\def\\ltclass{$$c}\\input{test/ltfoot}" >/dev/null \
+	  || { grep -A3 '^!' ltfoot-$$c.log; exit 1; }; done; \
+	  grep 'ltfoot test:' ltfoot-$$c.log; done
+
+# Reading the marks of a page logs no error, even with glue that shrinks
+# without limit in it; the second run checks the notes' pages
+# (see test/marksquiet.tex).
+marksquiet.pdf:marginfix.sty test/marksquiet.tex
+	${RM} marksquiet.aux
+	for i in 1 2; do \
+	  pdflatex -interaction=nonstopmode test/marksquiet.tex >/dev/null \
+	  || { grep -A3 '^!' marksquiet.log; exit 1; }; done
+	@grep 'marksquiet test:' marksquiet.log
 
 # Deferrable notes: each test in each mode, three passes, since the checks
 # (see test/prioritycheck.tex) read the pages from the previous run.  A
@@ -126,30 +339,6 @@ modechange.pdf modechange-warn.pdf: marginfix.sty test/modechange.tex \
 	case $@ in modechange-warn.pdf) test $$n -eq 2;; *) test $$n -eq 1;; esac \
 	  || { echo "$@: expected warnings naming the included file"; exit 1; }
 
-# Notes that don't fit (test/overflow.tex): each mode until the runs settle.
-.PHONY: overflow-test
-overflow-test:marginfix.sty
-	test/overflowcheck.sh
-
-# A page doesn't end early for a note that fits (test/stale.tex); needs
-# pdftotext.
-.PHONY: stale-test
-stale-test:marginfix.sty
-	test/stalecheck.sh
-
-# A line that calls out a note in a paragraph may end a page, and a first line
-# with a note isn't left alone at the foot when the club penalty forbids it
-# (test/calloutbreak.tex); needs pdftotext.
-.PHONY: calloutbreak-test
-calloutbreak-test:marginfix.sty
-	test/calloutbreakcheck.sh
-
-# A float in the text with a side caption keeps the margin beside it empty
-# (test/midfloat.tex); needs pdftotext.
-.PHONY: midfloat-test
-midfloat-test:marginfix.sty
-	test/midfloatcheck.sh
-
 .PHONY: off-test
 off-test:marginfix.sty
 	test/offmode.sh
@@ -196,3 +385,4 @@ $(SIDE_CASES:%=side-%.pdf): side-%.pdf: marginfix.sty test/side.tex
 
 clean:
 	rm *.log *.aux *.pdf tufte.out marginfix.sty
+	rm -rf fuzz-work

@@ -1,0 +1,29 @@
+% Test that a note taller than the margin that can be split is split, when
+% the notes before it leave a room in the gap between what lets the split be
+% tried (\Mfx@splitmin) and what the split itself needs (\Mfx@splitmin and
+% \marginparpush, a point and, with a cue, a line more).  Up to e852911 the
+% split failed there for want of room, the failure was taken for a note
+% that can't be split shorter, and the note was set as it was, as tall as
+% the margin, with a warning saying so: its text ran off the paper, and its
+% last word was never printed.  Now it stays whole until a page has room to
+% split it, and every word of it is printed.
+%
+% A rule note leaves the room in that gap, and a note of 720 words follows.
+% make checks that no note is set as it is, and that the note's last word,
+% BLAST, is in the PDF.
+\documentclass{article}
+\usepackage[a5paper,margin=18mm,marginparwidth=14mm,marginparsep=2mm]{geometry}
+\usepackage{marginfix}
+\pagestyle{empty}
+\makeatletter
+\newcommand{\fillwords}[1]{\count@=#1\relax
+  \loop\ifnum\count@>\z@ lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count@\m@ne\repeat}
+\newdimen\gapA
+\AtBeginDocument{\gapA=\dimexpr\textheight-\marginparpush-\Mfx@splitmin-3pt\relax}
+\makeatother
+\begin{document}
+Start\marginpar{\rule{1pt}{\gapA}} and
+B\marginpar{\footnotesize BFIRST \fillwords{60} BLAST}
+\fillwords{80}
+\end{document}

@@ -1,0 +1,51 @@
+% Test that reading the marks of a page logs no error.
+%
+% A package's output routine may put glue that shrinks without limit into the
+% page.  Here it is in the page only while marginfix reads it (a wrapper of
+% \MFX@combinefloats@before adds it, with a kern after it, and takes both off
+% again), so that the kernel's own reading of the marks doesn't see it.  Up to
+% 306a3b9, \vsplit of the page complained of it in the log, in batch mode, so
+% the run ended with an error status.  The notes must still be set on the
+% pages of their callouts.
+%
+% Two runs: the second checks, from the labels of the first, that each note is
+% on its callout's page; any error stops make.
+\documentclass{article}
+\usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\usepackage{marginfix}
+\pagestyle{empty}
+
+\makeatletter
+\let\mq@cfb\MFX@combinefloats@before
+\def\MFX@combinefloats@before{%
+  \setbox\@outputbox\vbox{\unvbox\@outputbox\vskip\z@ minus 1fil\kern\z@}%
+  \mq@cfb
+  \setbox\@outputbox\vbox{\unvbox\@outputbox\unkern\unskip}}
+\providecommand\mqrun{0}
+\AtBeginDocument{\if@filesw\immediate\write\@auxout{%
+  \gdef\string\mqrun{\the\numexpr\mqrun+1\relax}}\fi}
+\def\mqpage#1{%
+  \expandafter\ifx\csname r@#1\endcsname\relax ??\else
+    \expandafter\expandafter\expandafter\mq@page
+      \csname r@#1\endcsname\@nil\fi}
+\def\mq@page#1#2#3\@nil{#2}
+\newcommand{\fillwords}[1]{\count@=#1\relax
+  \loop\ifnum\count@>\z@ lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count@\m@ne\repeat}
+\def\mqcheck#1{%
+  \edef\callout{\mqpage{callout-#1}}\edef\note{\mqpage{note-#1}}%
+  \ifx\callout\note
+    \typeout{marksquiet test: note #1 on page \note, as its callout}%
+  \else
+    \PackageError{marksquiet test}{Note #1 on page \note, its callout on
+      page \callout}{}%
+  \fi}
+\makeatother
+
+\begin{document}
+Start\label{callout-A}\marginpar{A.\label{note-A}} \fillwords{30}
+Then\label{callout-B}\marginpar{B.\label{note-B}} \fillwords{30}
+End\label{callout-C}\marginpar{C.\label{note-C}} \fillwords{10}
+
+\ifnum\mqrun=1 \mqcheck{A}\mqcheck{B}\mqcheck{C}\fi
+\end{document}
