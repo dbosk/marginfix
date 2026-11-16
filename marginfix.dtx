@@ -15,7 +15,7 @@
            [2026/11/16 v1.7 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{4041}
+\CheckSum{4047}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -1008,19 +1008,25 @@
 %    \end{macrocode}
 % \end{macros}
 %
-% \begin{macros}{\mfx@anchorpage,\mfx@yield,\mfx@unyield,\mfx@yieldtries,
-%     \mfx@yieldht,\mfx@noyield,\mfx@noyieldat,\mfx@noyieldfirm}
+% \begin{macros}{\mfx@anchorpage,\mfx@yield,\mfx@yieldfirm,\mfx@unyield,
+%     \mfx@yieldtries,\mfx@yieldht,\mfx@noyield,\mfx@noyieldat,
+%     \mfx@noyieldfirm}
 % What the \texttt{.aux} files of v1.3 to v1.6 call back; nothing to do.
 % \cs{mfx@anchorpage} records a callout's page, and the others are the
 % records of v1.6 (the branch \texttt{integration}), which ended a page
 % early for a note and capped how much.  An \texttt{.aux} file provides only
 % three of them, so the first run after an update would otherwise stop at
 % the first of the others with an undefined control sequence
-% (test/oldaux.tex).  The next run writes none of them.
+% (test/oldaux.tex).  The next run writes none of them.  The shapes are
+% those that the branch's revisions wrote, all 73 of them that change the
+% file: one of them (2a363f8) wrote \cs{mfx@yieldfirm}\marg{key}, and
+% \cs{mfx@unyield} with three arguments where the others wrote two, so we
+% take a third if one follows.
 %    \begin{macrocode}
 \def\mfx@anchorpage#1#2{}
 \def\mfx@yield#1{}
-\def\mfx@unyield#1#2{}
+\def\mfx@yieldfirm#1{}
+\def\mfx@unyield#1#2{\@ifnextchar\bgroup\@gobble\relax}
 \def\mfx@yieldtries#1#2{}
 \def\mfx@yieldht#1#2{}
 \def\mfx@noyield#1{}

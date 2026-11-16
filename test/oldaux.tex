@@ -1,7 +1,10 @@
 % The first run on an .aux that an older marginfix wrote (test/oldaux.aux16:
-% the records of v1.6, as the branch integration wrote them, and of the
-% versions before it) must not stop with an error: the records are read and
-% ignored.  The Makefile copies the file to oldaux.aux and runs LaTeX once.
+% one record of every shape that the branch integration, v1.6, wrote in any
+% of its revisions: \mfx@anchorpage, \mfx@yield, \mfx@yieldfirm,
+% \mfx@yieldtries, \mfx@yieldht, \mfx@noyield, \mfx@noyieldat,
+% \mfx@noyieldfirm, and \mfx@unyield with two and with three arguments)
+% must not stop with an error: the records are read and ignored.  The
+% Makefile copies the file to oldaux.aux and runs LaTeX once.
 \documentclass{article}
 \usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
 \usepackage{marginfix}
