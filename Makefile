@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf ltfoot-test marksfallback-test oldaux-test classes-test carrywarn-test tallnote-test tallrest-test splitrest-test chopused-test chopmany-test carryend-test priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf ltfoot-test marksfallback-test oldaux-test classes-test carrywarn-test tallnote-test tallrest-test splitrest-test chopgap-test chopused-test chopmany-test carryend-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	midfloat-test calloutbreak-test innercallout-test $(SIDE_CASES:%=side-%.pdf)
@@ -187,6 +187,24 @@ splitrest-test:marginfix.sty test/splitrest.tex
 	    grep -q "newlabel{$$l}" splitrest-$$c.aux || \
 	      { echo "splitrest $$c: note $$l not set"; exit 1; }; done; \
 	  echo "splitrest $$c: ended, $$p pages, every note set"; done
+
+# A note taller than the margin that can be split, behind notes that leave
+# little room, is split, not set as it is (see test/chopgap.tex): no note set
+# as it is, and its last word printed.  And in a margin too short to try a
+# split, such a note is set as it is, not lost (test/choptiny.tex).
+.PHONY: chopgap-test
+chopgap-test:marginfix.sty test/chopgap.tex test/choptiny.tex
+	pdflatex -interaction=nonstopmode test/chopgap.tex >/dev/null \
+	  || { grep -A3 '^!' chopgap.log; exit 1; }
+	! grep -q "can't" chopgap.log \
+	  || { echo "chopgap: a note set as it is"; exit 1; }
+	pdftotext chopgap.pdf - | grep -q BLAST \
+	  || { echo "chopgap: the note's last word is not in the PDF"; exit 1; }
+	@echo "chopgap: split, every word printed"
+	pdflatex -interaction=nonstopmode test/choptiny.tex >/dev/null \
+	  || { grep -A3 '^!' choptiny.log; exit 1; }
+	test "$$(grep -c 'newlabel{n' choptiny.aux)" = 2
+	@echo "choptiny: no error, both notes set"
 
 # Many notes waiting for the margin don't overflow a dimension (see
 # test/chopused.tex): no error, every note set.

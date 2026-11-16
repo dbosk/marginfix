@@ -15,7 +15,7 @@
            [2026/11/16 v1.7 Fix Margin Paragraphs]
 %<*driver>
 \documentclass{ltxdoc}
-\CheckSum{4018}
+\CheckSum{4041}
 %\OnlyDescription % (un)comment this line to show (hide) source code
 \RecordChanges
 \EnableCrossrefs
@@ -2164,6 +2164,18 @@
 % it was lost at the end of the document, and every note after it with it.
 % Instead we set it as it is, made as tall as the margin, so that it takes a
 % margin of its own and runs over its foot, and we warn, naming its place.
+%
+% But only if the split failed with room enough to try it.  The test above
+% lets the split be tried when the notes before it leave \cs{Mfx@splitmin},
+% and \cs{MFX@split@try} wants more (\cs{marginparpush}, a point and, with a
+% cue, a line as well); in that gap the split failed for want of room, and
+% such a note, which can be split, was set as it is, its end off the paper,
+% with a warning that it can't be split (test/chopgap.tex).  So when
+% \cs{MFX@split@try} says there was no room (\cs{mfx@split@noroom}), the note
+% stays whole, as when the notes before it leave less than
+% \cs{Mfx@splitmin}, and is split at the top of a later page.  At the top
+% of a page, with nothing before it, we set it as it is all the same: a
+% margin too short to try a split in will never have more room.
 %    \begin{macrocode}
 \newdimen\Mfx@chop@used
 % \MFX@fit@margin\meta{box}: make the box a point shorter than the margin
@@ -2204,6 +2216,11 @@
   \if@tempswa
     \Mfx@splitroom\dimexpr\Mfx@marginheight-\Mfx@chop@used\relax
     \MFX@split@try#1%
+    \ifx\mfx@split@noroom\@empty\else
+      \ifdim\Mfx@chop@used>\z@ \@tempswafalse \fi
+    \fi
+  \fi
+  \if@tempswa
     \ifx\mfx@split@ok\@empty
       \PackageWarningNoLine{marginfix}{The margin note called out at
         \MFX@loc#1\MessageBreak is taller than the margin by
@@ -3095,7 +3112,10 @@
 % \cs{MFX@split@try}\marg{box} splits the note in \cs{@marbox} (the box of
 % \meta{box}'s pair on this page's side) to the room in
 % \cs{Mfx@splitroom}: if it can, \cs{mfx@split@ok} is not empty, and the
-% parts are in \cs{Mfx@split@top} and \cs{Mfx@split@rest}.  A split counts
+% parts are in \cs{Mfx@split@top} and \cs{Mfx@split@rest}.  If the room is too
+% small to try (no more than \cs{Mfx@splitmin} once \cs{marginparpush}, a
+% point and, with a cue at the end, a line are taken off),
+% \cs{mfx@split@noroom} is not empty either.  A split counts
 % only if its rest is shorter than the note: the rest of a note whose last
 % part is one tall line, such as a rule, gains the height of a first line
 % (and of the cue) and can come out as tall as the note, and splitting it
@@ -3118,10 +3138,14 @@
 \def\MFX@split@try#1{%
   \begingroup
     \global\let\mfx@split@ok\@empty
+    \global\let\mfx@split@noroom\@empty
     \MFX@notefont#1%
     \Mfx@scan@room\dimexpr\Mfx@splitroom-\marginparpush-\p@\relax
     \ifx\mfx@contsuffix\@empty\else
       \advance\Mfx@scan@room-\baselineskip
+    \fi
+    \ifdim\Mfx@scan@room>\Mfx@splitmin\else
+      \gdef\mfx@split@noroom{y}%
     \fi
     \ifdim\Mfx@scan@room>\Mfx@splitmin
       \setbox\z@\vbox{\unvcopy\@marbox\global\setbox\Mfx@split@tmp\lastbox}%
