@@ -999,10 +999,24 @@
 %    \end{macrocode}
 % \end{macros}
 %
-% \begin{macros}{\mfx@anchorpage}
-% What the \texttt{.aux} files of v1.5 call back; nothing to do.
+% \begin{macros}{\mfx@anchorpage,\mfx@yield,\mfx@unyield,\mfx@yieldtries,
+%     \mfx@yieldht,\mfx@noyield,\mfx@noyieldat,\mfx@noyieldfirm}
+% What the \texttt{.aux} files of v1.3 to v1.6 call back; nothing to do.
+% \cs{mfx@anchorpage} records a callout's page, and the others are the
+% records of v1.6 (the branch \texttt{integration}), which ended a page
+% early for a note and capped how much.  An \texttt{.aux} file provides only
+% three of them, so the first run after an update would otherwise stop at
+% the first of the others with an undefined control sequence
+% (test/oldaux.tex).  The next run writes none of them.
 %    \begin{macrocode}
 \def\mfx@anchorpage#1#2{}
+\def\mfx@yield#1{}
+\def\mfx@unyield#1#2{}
+\def\mfx@yieldtries#1#2{}
+\def\mfx@yieldht#1#2{}
+\def\mfx@noyield#1{}
+\def\mfx@noyieldat#1#2{}
+\def\mfx@noyieldfirm#1#2{}
 %    \end{macrocode}
 % \end{macros}
 %

@@ -1,0 +1,22 @@
+% The first run on an .aux that an older marginfix wrote (test/oldaux.aux16:
+% the records of v1.6, as the branch integration wrote them, and of the
+% versions before it) must not stop with an error: the records are read and
+% ignored.  The Makefile copies the file to oldaux.aux and runs LaTeX once.
+\documentclass{article}
+\usepackage[a5paper,margin=18mm,marginparwidth=22mm]{geometry}
+\usepackage{marginfix}
+\ifdefined\marginnoteoverflow\marginnoteoverflow{break}\fi
+\makeatletter
+\newcommand{\fillwords}[1]{\count@=#1\relax
+  \loop\ifnum\count@>\z@ lorem ipsum dolor sit amet consectetur adipiscing elit sed
+    do eiusmod tempor \advance\count@\m@ne\repeat}
+\makeatother
+\begin{document}
+\fillwords{20}
+A\marginpar{\fillwords{6}} \fillwords{3}
+B\marginpar{\fillwords{6}} \fillwords{3}
+C\marginpar{\fillwords{6}} \fillwords{3}
+D\marginpar{\fillwords{6}} \fillwords{3}
+E\marginpar{\fillwords{6}} \fillwords{3}
+\fillwords{60}
+\end{document}
