@@ -21,7 +21,7 @@ FLOATS_CASES=plain ragged wide overfull group nested left verso side marker two 
 FLOATS_JOBS=$(foreach c,$(FLOATS_CASES),$(foreach m,reserve use,floats-$(c)-$(m)))
 ARTICLE_FLOATS_JOBS=article-floats-reserve article-floats-use
 
-test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test oldaux-test carrywarn-test tallnote-test tallrest-test splitrest-test chopused-test chopmany-test carryend-test priority-test \
+test:margintest.pdf tufte.pdf ragged.pdf defer.pdf phantom.pdf float.pdf stretch.pdf issue-15.pdf columnwidth.pdf anchorpage.pdf anchormarks.pdf injectmarks.pdf marksquiet.pdf marksfallback-test oldaux-test classes-test carrywarn-test tallnote-test tallrest-test splitrest-test chopused-test chopmany-test carryend-test priority-test \
 	$(SPLITRULES_JOBS:=.pdf) modechange.pdf modechange-warn.pdf off-test \
 	$(FLOATS_JOBS:=.pdf) floats-test $(ARTICLE_FLOATS_JOBS:=.pdf) beamer-floats.pdf \
 	midfloat-test calloutbreak-test innercallout-test $(SIDE_CASES:%=side-%.pdf)
@@ -39,6 +39,20 @@ marksfallback-test:marginfix.sty test/marksfallback.tex
 	@grep -q 'marksfallback test: on its page' marksfallback.log \
 	  || grep -q "Can't read the callouts" marksfallback.log \
 	  || { echo "marksfallback: note off its page, and no warning"; exit 1; }
+
+# Every standard class and memoir gets its notes at this version, which the
+# kernel's first aid doesn't know (test/classes.tex).
+CLASSES=article report book memoir
+.PHONY: classes-test
+classes-test:marginfix.sty test/classes.tex
+	for c in $(CLASSES); do \
+	  pdflatex -interaction=nonstopmode -jobname=classes-$$c \
+	    "\\def\\testclass{$$c}\\input{test/classes}" >/dev/null \
+	  || { grep -A3 '^!' classes-$$c.log; exit 1; }; \
+	  ! grep -q 'lost some margin notes' classes-$$c.log \
+	  && test "$$(grep -c 'newlabel{n' classes-$$c.aux)" = 4 \
+	  || { echo "classes: $$c loses notes"; exit 1; }; \
+	  echo "classes: $$c sets every note"; done
 
 # The first run on an .aux of an older version (test/oldaux.tex) has no error.
 .PHONY: oldaux-test
